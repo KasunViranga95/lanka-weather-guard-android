@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">Lanka Weather Guard</string>
+    <string name="nav_alerts">Alerts</string>
+    <string name="nav_radar">Live Radar</string>
+    <string name="nav_rivers">River Levels</string>
+    <string name="nav_forecast">Forecast</string>
+    <string name="nav_safety">Safety Hub</string>
+    <string name="header_title">Sri Lanka Weather &amp; Flood Defense</string>
+    <string name="header_subtitle">DMC • Met Dept • Irrigation Hydrology Live Feed</string>
+    <string name="gps_detect_button">Detect My Location</string>
+    <string name="refresh_telemetry">Refresh Live Telemetry</string>
+    <string name="emergency_dial_dmc">Call DMC 117</string>
+    <string name="emergency_dial_ambulance">Suwa Seriya 1990</string>
+    <string name="share_safety_report">Share Situation Report</string>
+    <string name="search_rivers_hint">Search river basin, gauging station, or district…</string>
+    <string name="radar_play">Play Radar Loop</string>
+    <string name="radar_pause">Pause Radar Loop</string>
+</resources>

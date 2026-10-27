@@ -1,0 +1,6 @@
+{
+  "name": "Lanka Weather Guard",
+  "description": "Real-time Sri Lanka adverse weather alerts, live Doppler radar, river basin water level telemetry, and regional safety forecasts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
