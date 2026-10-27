@@ -72,6 +72,7 @@ import com.example.model.LiveMapOverlayMetric
 import com.example.model.RadarDbzMeaningList
 import com.example.model.RadarFrame
 import com.example.model.RadarLayerType
+import com.example.model.CityWeatherSnapshot
 import com.example.model.RegionalWeatherReport
 import com.example.model.RiverGaugeStation
 import com.example.model.SriLankaRegion
@@ -119,6 +120,7 @@ fun LiveRadarScreen(
     selectedRegion: SriLankaRegion,
     selectedNearestCity: String,
     regionalReport: RegionalWeatherReport,
+    islandSnapshots: List<CityWeatherSnapshot> = emptyList(),
     selectedStation: RiverGaugeStation?,
     onSelectMapMode: (LiveMapMode) -> Unit,
     onSelectZoomEarthLayer: (ZoomEarthLayer) -> Unit,
@@ -438,6 +440,7 @@ fun LiveRadarScreen(
                         stations = stations,
                         regionalReport = regionalReport,
                         overlayMetric = liveMapOverlayMetric,
+                        islandSnapshots = islandSnapshots,
                         selectedStation = activeMapStation,
                         onStationSelected = onStationSelected,
                         modifier = Modifier

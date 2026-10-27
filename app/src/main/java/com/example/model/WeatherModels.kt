@@ -10,11 +10,11 @@ import java.util.Locale
 import kotlin.math.max
 
 enum class AppTab(val route: String, val label: String) {
-    ALERTS("alerts", "Alerts"),
-    RADAR("radar", "Live Map"),
+    ALERTS("alerts", "Home"),
+    RADAR("radar", "Map"),
     RIVERS("rivers", "Rivers"),
     FORECAST("forecast", "Forecast"),
-    SAFETY("safety", "Safety Hub")
+    SAFETY("safety", "Safety")
 }
 
 enum class AlertSeverity(
@@ -326,7 +326,211 @@ private val SRI_LANKA_CITY_COORDINATES: Map<String, Pair<Double, Double>> = mapO
     "trincomalee" to (8.5874 to 81.2152),
     "batticaloa" to (7.7310 to 81.6747),
     "ampara" to (7.2975 to 81.6820),
-    "kalmunai" to (7.4090 to 81.8347)
+    "kalmunai" to (7.4090 to 81.8347),
+    // Remaining residing-area towns (geocoded via Open-Meteo/GeoNames & OpenStreetMap)
+    // Colombo District
+    "colombo fort & pettah" to (6.9365 to 79.8510),
+    "nugegoda" to (6.8735 to 79.8899),
+    "dehiwala - mount lavinia" to (6.8402 to 79.8712),
+    "padukka" to (6.8408 to 80.0897),
+    // Gampaha District
+    "gampaha town" to (7.0897 to 79.9925),
+    "nittambuwa" to (7.1426 to 80.0938),
+    "divulapitiya" to (7.2240 to 80.0094),
+    "dompe" to (6.9503 to 80.0510),
+    "katunayake" to (7.1568 to 79.8717),
+    // Kalutara District
+    "kalutara town" to (6.5831 to 79.9593),
+    "agalawatta" to (6.5422 to 80.1583),
+    "palindanuwara (baduraliya)" to (6.5084 to 80.2329),
+    "dodangoda" to (6.5531 to 80.0223),
+    "millaniya" to (6.6800 to 80.0208),
+    "ingiriya" to (6.7438 to 80.1760),
+    "beruwala" to (6.4788 to 79.9828),
+    // Ratnapura District
+    "ratnapura town" to (6.7135 to 80.3841),
+    "kiriella" to (6.7446 to 80.2662),
+    "nivitigala" to (6.6094 to 80.4186),
+    "kahawatta" to (6.5825 to 80.5755),
+    // Kegalle District
+    "kegalle town" to (7.2523 to 80.3436),
+    "yatiyantota" to (7.0279 to 80.2946),
+    "karawanella" to (7.0259 to 80.2566),
+    "galigamuwa" to (7.2398 to 80.3116),
+    "aranayaka" to (7.1669 to 80.4465),
+    // Galle District
+    "galle city" to (6.0328 to 80.2150),
+    "tawalama" to (6.3387 to 80.3437),
+    "yakkalamulla" to (6.1098 to 80.3454),
+    "bentota" to (6.3550 to 80.1728),
+    "imaduwa" to (6.0355 to 80.3857),
+    "bope-poddala" to (6.0500 to 80.2000),
+    // Matara District
+    "matara town" to (5.9485 to 80.5353),
+    "kotapola" to (6.2836 to 80.5431),
+    "kamburupitiya" to (6.0833 to 80.5667),
+    "hakmana" to (6.0836 to 80.6445),
+    "mirissa" to (5.9466 to 80.4583),
+    "mulatiyana" to (6.1690 to 80.5794),
+    // Hambantota District
+    "hambantota town" to (6.1241 to 81.1185),
+    "beliatta" to (6.0496 to 80.7325),
+    "walasmulla" to (6.1521 to 80.6941),
+    "katuwana" to (6.2700 to 80.6735),
+    "sooriyawewa" to (6.3082 to 81.0022),
+    "lunugamvehera" to (6.3470 to 81.1961),
+    // Kandy District
+    "kandy city" to (7.2931 to 80.6350),
+    "kadugannawa" to (7.2547 to 80.5242),
+    "kundasale" to (7.2737 to 80.7001),
+    "digana" to (7.3016 to 80.7330),
+    "teldeniya" to (7.2969 to 80.7686),
+    "akurana" to (7.3667 to 80.6167),
+    "galagedara" to (7.3730 to 80.5206),
+    "udunuwara" to (7.2642 to 80.5616),
+    // Nuwara Eliya District
+    "nuwara eliya town" to (6.9708 to 80.7829),
+    "norwood" to (6.8377 to 80.6079),
+    "maskeliya" to (6.8343 to 80.5676),
+    "ginigathena" to (6.9903 to 80.4877),
+    "lindula" to (6.9217 to 80.6850),
+    "kotmale" to (7.0619 to 80.6810),
+    "hanguranketha" to (7.1775 to 80.7755),
+    "ragala" to (7.0046 to 80.8580),
+    // Matale District
+    "matale town" to (7.4698 to 80.6217),
+    "sigiriya" to (7.9495 to 80.7504),
+    "rattota" to (7.5205 to 80.6798),
+    "ukuwela" to (7.4228 to 80.6167),
+    "galewela" to (7.7589 to 80.5683),
+    "naula" to (7.7047 to 80.6542),
+    "laggala-pallegama" to (7.5086 to 80.6648),
+    "wilgamuwa" to (7.5159 to 80.9205),
+    // Badulla District
+    "badulla town" to (6.9900 to 81.0570),
+    "haputale" to (6.7657 to 80.9510),
+    "ella" to (6.8756 to 81.0463),
+    "welimada" to (6.9044 to 80.9044),
+    "mahiyanganaya" to (7.3397 to 80.9939),
+    "passara" to (6.9346 to 81.1574),
+    "hali-ela" to (6.9536 to 81.0299),
+    "namunukula" to (6.9041 to 81.1211),
+    "diyatalawa" to (6.8096 to 80.9575),
+    "girandurukotte" to (7.4694 to 81.0146),
+    // Monaragala District
+    "monaragala town" to (6.8714 to 81.3487),
+    "wellawaya" to (6.7369 to 81.1028),
+    "thanamalwila" to (6.4333 to 81.1310),
+    "buttala" to (6.7608 to 81.2488),
+    "bibile" to (6.8586 to 81.3372),
+    "siyambalanduwa" to (6.9067 to 81.5461),
+    "nakkala" to (6.8875 to 81.2939),
+    "badalkumbura" to (6.8922 to 81.2396),
+    // Kurunegala District
+    "kurunegala city" to (7.4870 to 80.3649),
+    "giriulla" to (7.3299 to 80.1225),
+    "kuliyapitiya" to (7.4688 to 80.0401),
+    "pannala" to (7.5397 to 80.4363),
+    "narammala" to (7.4337 to 80.1971),
+    "alawwa" to (7.2971 to 80.2343),
+    "polgahawela" to (7.3381 to 80.3003),
+    "wariyapola" to (7.6177 to 80.2450),
+    "nikaweratiya" to (7.7167 to 80.1167),
+    "maho" to (7.3205 to 80.0610),
+    "galgamuwa" to (7.5604 to 80.3313),
+    "ibbagamuwa" to (7.5480 to 80.4577),
+    // Puttalam District
+    "puttalam town" to (8.0362 to 79.8283),
+    "wennappuwa" to (7.3514 to 79.8497),
+    "dankotuwa" to (7.2917 to 79.8817),
+    "marawila" to (7.4106 to 79.8280),
+    "nattandiya" to (7.4123 to 79.8624),
+    "madampe" to (7.4979 to 79.8381),
+    "anamaduwa" to (7.8786 to 80.0080),
+    "kalpitiya" to (8.2287 to 79.7599),
+    // Anuradhapura District
+    "anuradhapura city" to (8.3350 to 80.4106),
+    "thanthirimale" to (8.5721 to 80.2528),
+    "horowpothana" to (8.5493 to 80.8329),
+    "kekirawa" to (8.0385 to 80.5941),
+    "thambuttegama" to (8.1613 to 80.3001),
+    "eppawala" to (8.1426 to 80.4030),
+    "nochchiyagama" to (8.2631 to 80.2044),
+    "medawachchiya" to (8.3667 to 80.3333),
+    "mihintale" to (8.3593 to 80.5103),
+    "kahatagasdigiliya" to (8.4214 to 80.6865),
+    "galenbindunuwewa" to (8.1667 to 80.2833),
+    // Polonnaruwa District
+    "polonnaruwa town" to (7.9397 to 81.0027),
+    "kaduruwela" to (7.9333 to 81.0333),
+    "manampitiya" to (7.9000 to 81.1167),
+    "somawathiya" to (8.1242 to 81.1726),
+    "hingurakgoda" to (8.0333 to 80.9500),
+    "medirigiriya" to (8.1423 to 80.9713),
+    "welikanda" to (7.9516 to 81.2452),
+    "dimbulagala" to (7.8667 to 81.1167),
+    "bakamuna" to (7.7833 to 80.8167),
+    // Trincomalee District
+    "trincomalee town" to (8.5385 to 81.1818),
+    "kinniya" to (8.4985 to 81.1832),
+    "mutur" to (8.4585 to 81.2687),
+    "kantale" to (8.3500 to 81.0003),
+    "seruvila" to (8.3684 to 81.3173),
+    "kuchchaveli" to (8.8146 to 81.0990),
+    "gomarankadawala" to (8.6749 to 80.9548),
+    "pulmoddai" to (8.9403 to 80.9810),
+    // Batticaloa District
+    "batticaloa town" to (7.7102 to 81.6924),
+    "kattankudy" to (7.6824 to 81.7334),
+    "eravur" to (7.7782 to 81.6038),
+    "valaichchenai" to (7.5833 to 81.7500),
+    "chenkalady" to (7.7860 to 81.5910),
+    "kalkudah" to (7.7191 to 81.5874),
+    "kaluwanchikudy" to (7.5175 to 81.7871),
+    "vakarai" to (8.1333 to 81.4333),
+    // Ampara District
+    "ampara town" to (7.2975 to 81.6820),
+    "akkaraipattu" to (7.2165 to 81.8538),
+    "sainthamaruthu" to (7.3945 to 81.8342),
+    "sammanthurai" to (7.3572 to 81.7970),
+    "pottuvil" to (6.8762 to 81.8267),
+    "padiyatalawa" to (7.4002 to 81.2428),
+    "mahaoya" to (7.5306 to 81.3569),
+    "uhana" to (7.3667 to 81.6333),
+    // Jaffna District
+    "jaffna city" to (9.6651 to 80.0093),
+    "nallur" to (9.6667 to 80.0333),
+    "chavakachcheri" to (9.6600 to 80.1510),
+    "point pedro" to (9.8167 to 80.2333),
+    "chunnakam" to (9.7456 to 80.0271),
+    "kankesanthurai" to (9.8095 to 80.0430),
+    "kopay" to (9.6950 to 80.0465),
+    "karainagar" to (9.7077 to 79.8732),
+    "kayts" to (9.6978 to 79.8629),
+    // Kilinochchi District
+    "kilinochchi town" to (9.3961 to 80.3982),
+    "paranthan" to (9.4401 to 80.4071),
+    "pallai" to (9.6079 to 80.3298),
+    "poonakary" to (9.5005 to 80.2092),
+    "akkarayankulam" to (9.3093 to 80.3129),
+    // Mannar District
+    "mannar town" to (8.9894 to 79.8784),
+    "murunkan" to (8.8348 to 80.0341),
+    "nanattan" to (8.8358 to 79.9706),
+    "musali" to (8.7472 to 79.9555),
+    "madhu" to (8.7720 to 80.1497),
+    "pesalai" to (9.0833 to 79.8333),
+    // Vavuniya District
+    "vavuniya town" to (8.7514 to 80.4971),
+    "cheddikulam" to (8.6659 to 80.3138),
+    "nedunkerny" to (8.9811 to 80.7413),
+    "omanthai" to (8.8656 to 80.5031),
+    // Mullaitivu District
+    "mullaitivu town" to (9.2680 to 80.8150),
+    "puthukkudiyiruppu" to (9.3106 to 80.6946),
+    "oddusuddan" to (9.1513 to 80.6526),
+    "mankulam" to (9.1304 to 80.4430),
+    "welioya" to (8.9674 to 80.7814)
 )
 
 data class DispatchedNotificationRecord(
@@ -404,7 +608,9 @@ data class RiverGaugeStation(
     val lastUpdatedText: String,
     val hourlyLevelsM: List<Double>,
     val downstreamTowns: List<String>,
-    val tributaryOf: String? = null
+    val tributaryOf: String? = null,
+    // Live gauge readings over the last 24h (oldest → newest); empty when the feed is unavailable
+    val history24hM: List<Double> = emptyList()
 ) {
     val floodStatus: FloodStatus
         get() = when {
@@ -434,7 +640,7 @@ data class RiverGaugeStation(
         val normalBaseline = max(0.45, alertLevelM * 0.62)
         return when (range) {
             HydrographTimeRange.HOURS_6 -> base6h
-            HydrographTimeRange.HOURS_24 -> listOf(
+            HydrographTimeRange.HOURS_24 -> if (history24hM.size >= 2) history24hM else listOf(
                 normalBaseline + (earliest6h - normalBaseline) * 0.25,
                 normalBaseline + (earliest6h - normalBaseline) * 0.42,
                 normalBaseline + (earliest6h - normalBaseline) * 0.60,
@@ -500,6 +706,8 @@ data class ActivitySafetyAssessment(
 
 data class RegionalWeatherReport(
     val region: SriLankaRegion,
+    // Town the weather was fetched for (the selected nearest city or GPS town)
+    val locationName: String = region.name,
     val currentTempC: Double,
     val feelsLikeC: Double,
     val humidityPercent: Int,
@@ -513,7 +721,9 @@ data class RegionalWeatherReport(
     val daily: List<DailyForecastItem>,
     val activityAssessments: List<ActivitySafetyAssessment>,
     val isLiveApiData: Boolean,
-    val syncedTimestamp: String
+    val syncedTimestamp: String,
+    // WMO weather code for current conditions (drives the condition icon)
+    val weatherCode: Int = 3
 )
 
 data class RadarFrame(
@@ -562,4 +772,15 @@ data class SafetyChecklistItem(
     val detail: String,
     val category: String,
     val isChecked: Boolean = false
+)
+
+/** Live current conditions for one town on the island overview map. */
+data class CityWeatherSnapshot(
+    val name: String,
+    val district: String,
+    val tempC: Double,
+    val humidityPercent: Int,
+    val precipitationMm: Double,
+    val rainTodayMm: Double,
+    val windGustKmh: Double
 )

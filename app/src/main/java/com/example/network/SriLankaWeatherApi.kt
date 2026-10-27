@@ -57,6 +57,40 @@ data class OpenMeteoFloodDaily(
     @Json(name = "river_discharge") val riverDischarge: List<Double>?
 )
 
+// Sri Lanka Irrigation Department hydrology gauge feed (ArcGIS FeatureServer, ~hourly readings)
+data class IrrigationGaugeQueryResponse(
+    @Json(name = "features") val features: List<IrrigationGaugeFeature>?,
+    @Json(name = "exceededTransferLimit") val exceededTransferLimit: Boolean?
+)
+
+data class IrrigationGaugeFeature(
+    @Json(name = "attributes") val attributes: IrrigationGaugeReading?
+)
+
+data class IrrigationGaugeReading(
+    @Json(name = "basin") val basin: String?,
+    @Json(name = "gauge") val gauge: String?,
+    @Json(name = "water_level") val waterLevelM: Double?,
+    @Json(name = "rain_fall") val rainFallMm: Double?,
+    @Json(name = "CreationDate") val creationDateMillis: Long?,
+    @Json(name = "alertpull") val alertLevelM: Double?,
+    @Json(name = "minorpull") val minorFloodLevelM: Double?,
+    @Json(name = "majorpull") val majorFloodLevelM: Double?
+)
+
+interface IrrigationGaugeService {
+    @GET("query")
+    suspend fun queryReadings(
+        @Query("where") where: String = "CreationDate >= CURRENT_TIMESTAMP - INTERVAL '24' HOUR",
+        @Query("outFields") outFields: String = "basin,gauge,water_level,rain_fall,CreationDate,alertpull,minorpull,majorpull",
+        @Query("orderByFields") orderBy: String = "CreationDate DESC",
+        @Query("returnGeometry") returnGeometry: Boolean = false,
+        @Query("resultOffset") resultOffset: Int = 0,
+        @Query("resultRecordCount") resultRecordCount: Int = 1000,
+        @Query("f") format: String = "json"
+    ): IrrigationGaugeQueryResponse
+}
+
 interface OpenMeteoService {
     @GET("v1/forecast")
     suspend fun getForecast(
@@ -66,9 +100,47 @@ interface OpenMeteoService {
         @Query("hourly") hourly: String = "temperature_2m,precipitation_probability,precipitation,wind_gusts_10m,weather_code",
         @Query("daily") daily: String = "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_gusts_10m_max",
         @Query("timezone") timezone: String = "Asia/Colombo",
-        @Query("forecast_days") forecastDays: Int = 7
+        @Query("forecast_days") forecastDays: Int = 7,
+        // Hourly series starts at the current hour rather than midnight
+        @Query("forecast_hours") forecastHours: Int = 24
     ): OpenMeteoResponse
+
+    // Same location from several global models; keys come back suffixed, e.g. "temperature_2m_gfs_seamless"
+    @GET("v1/forecast")
+    suspend fun getMultiModelTemperatures(
+        @Query("latitude") latitude: Double,
+        @Query("longitude") longitude: Double,
+        @Query("hourly") hourly: String = "temperature_2m,apparent_temperature,relative_humidity_2m",
+        @Query("daily") daily: String = "temperature_2m_max,temperature_2m_min",
+        @Query("models") models: String = TEMPERATURE_ENSEMBLE_MODELS.joinToString(","),
+        @Query("timezone") timezone: String = "Asia/Colombo",
+        @Query("forecast_days") forecastDays: Int = 7,
+        @Query("forecast_hours") forecastHours: Int = 24
+    ): OpenMeteoMultiModelResponse
+
+    // Comma-separated coordinates → one response object per location (JSON array)
+    @GET("v1/forecast")
+    suspend fun getCurrentForLocations(
+        @Query("latitude") latitudes: String,
+        @Query("longitude") longitudes: String,
+        @Query("current") current: String = "temperature_2m,relative_humidity_2m,precipitation,wind_gusts_10m,weather_code",
+        @Query("daily") daily: String = "precipitation_sum",
+        @Query("forecast_days") forecastDays: Int = 1,
+        @Query("timezone") timezone: String = "Asia/Colombo"
+    ): List<OpenMeteoResponse>
 }
+
+/**
+ * Models blended (median) for temperature. Scored against Sri Lankan airport METAR observations
+ * (Katunayake, Ratmalana, Mattala, Jaffna): this median had the lowest bias and tied for the lowest
+ * error, and stays robust when any single model has a bad run.
+ */
+val TEMPERATURE_ENSEMBLE_MODELS = listOf("ecmwf_ifs", "gfs_seamless", "ukmo_seamless", "icon_seamless")
+
+data class OpenMeteoMultiModelResponse(
+    @Json(name = "hourly") val hourly: Map<String, Any?>?,
+    @Json(name = "daily") val daily: Map<String, Any?>?
+)
 
 interface OpenMeteoFloodService {
     @GET("v1/flood")
@@ -78,6 +150,15 @@ interface OpenMeteoFloodService {
         @Query("daily") daily: String = "river_discharge",
         @Query("forecast_days") forecastDays: Int = 3
     ): OpenMeteoFloodResponse
+
+    // Comma-separated coordinates return one response object per location (JSON array)
+    @GET("v1/flood")
+    suspend fun getRiverDischargeForLocations(
+        @Query("latitude") latitudes: String,
+        @Query("longitude") longitudes: String,
+        @Query("daily") daily: String = "river_discharge",
+        @Query("forecast_days") forecastDays: Int = 1
+    ): List<OpenMeteoFloodResponse>
 }
 
 object WeatherNetworkClient {
@@ -106,5 +187,14 @@ object WeatherNetworkClient {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(OpenMeteoFloodService::class.java)
+    }
+
+    val irrigationGaugeService: IrrigationGaugeService by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://services3.arcgis.com/J7ZFXmR8rSmQ3FGf/arcgis/rest/services/gauges_2_view/FeatureServer/0/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(IrrigationGaugeService::class.java)
     }
 }

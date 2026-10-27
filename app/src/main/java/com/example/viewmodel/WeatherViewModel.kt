@@ -8,6 +8,7 @@ import com.example.data.SriLankaWeatherRepository
 import com.example.data.UserPreferencesStore
 import com.example.model.AlertSeverity
 import com.example.model.AppTab
+import com.example.model.CityWeatherSnapshot
 import com.example.model.DispatchedNotificationRecord
 import com.example.model.EmergencyShelter
 import com.example.model.GeminiClarificationMessage
@@ -74,7 +75,9 @@ data class WeatherUiState(
     val checklist: List<SafetyChecklistItem> = emptyList(),
     val showGeminiClarifierDialog: Boolean = false,
     val isGeminiThinking: Boolean = false,
-    val geminiMessages: List<GeminiClarificationMessage> = emptyList()
+    val geminiMessages: List<GeminiClarificationMessage> = emptyList(),
+    // Live conditions for the island overview map towns
+    val islandSnapshots: List<CityWeatherSnapshot> = emptyList()
 )
 
 class WeatherViewModel(
@@ -97,12 +100,9 @@ class WeatherViewModel(
             ?: NotificationIntervalOption.MIN_15
 
     private val initialFrames = repository.getRadarFrames()
-    private val initialStations = kotlinx.coroutines.runBlocking {
-        repository.fetchLiveRiverStations(initialRegion)
-    }
-    private val initialReport = kotlinx.coroutines.runBlocking {
-        repository.fetchRegionalReport(initialRegion)
-    }
+    // Placeholders only — live data is loaded by refreshAllTelemetry() in init (never block the main thread)
+    private val initialStations = repository.getReferenceStations()
+    private val initialReport = repository.getPlaceholderRegionalReport(initialRegion, initialCity)
     private val initialPrimaryStation = repository.findPrimaryStationForRegion(
         initialRegion,
         initialCity,
@@ -142,6 +142,9 @@ class WeatherViewModel(
 
     private var radarLoopJob: Job? = null
     private var notificationSchedulerJob: Job? = null
+    private var telemetryRefreshJob: Job? = null
+    @Volatile
+    private var lastTelemetrySyncMillis: Long = 0L
 
     init {
         refreshAllTelemetry(initialRegion, initialCity)
@@ -293,7 +296,7 @@ class WeatherViewModel(
                     }
                 )
             }
-            val report = repository.fetchRegionalReport(region)
+            val report = repository.fetchRegionalReport(region, nearestCity)
             val stations = repository.fetchLiveRiverStations(region)
             val alerts = repository.getAlertsForRegion(region, nearestCity, stations, report)
             val primaryStation = repository.findPrimaryStationForRegion(region, nearestCity, stations)
@@ -326,9 +329,13 @@ class WeatherViewModel(
                     latestNotification = notificationRecord,
                     notificationHistory = (listOf(notificationRecord) + state.notificationHistory)
                         .distinctBy { it.id }
-                        .take(8)
+                        .take(8),
+                    selectedStationDetail = state.selectedStationDetail?.let { prev ->
+                        stations.find { it.id == prev.id }
+                    }
                 )
             }
+            lastTelemetrySyncMillis = System.currentTimeMillis()
 
             restartPeriodicNotificationJob(appContext, intervalOption)
         }
@@ -399,8 +406,7 @@ class WeatherViewModel(
     }
 
     fun onCoordinatesDetectedAndNotify(context: Context, latitude: Double, longitude: Double) {
-        val nearest = repository.findNearestRegion(latitude, longitude)
-        val defaultCity = nearest.nearestCities.firstOrNull() ?: nearest.name
+        val (nearest, defaultCity) = repository.findNearestCity(latitude, longitude)
         confirmResidingLocationAndNotify(
             context = context,
             region = nearest,
@@ -433,7 +439,7 @@ class WeatherViewModel(
             while (isActive) {
                 delay(intervalOption.durationMillis)
                 val state = _uiState.value
-                val report = repository.fetchRegionalReport(state.selectedRegion)
+                val report = repository.fetchRegionalReport(state.selectedRegion, state.selectedNearestCity)
                 val stations = repository.fetchLiveRiverStations(state.selectedRegion)
                 val primaryStation = repository.findPrimaryStationForRegion(
                     state.selectedRegion,
@@ -457,10 +463,21 @@ class WeatherViewModel(
                     intervalOption = state.selectedNotificationInterval,
                     govAnnouncement = govAnnouncements.firstOrNull()
                 )
+                val alerts = repository.getAlertsForRegion(
+                    state.selectedRegion,
+                    state.selectedNearestCity,
+                    stations,
+                    report
+                )
+                lastTelemetrySyncMillis = System.currentTimeMillis()
                 _uiState.update { current ->
                     current.copy(
                         regionalReport = report,
                         riverStations = stations,
+                        alerts = alerts,
+                        selectedStationDetail = current.selectedStationDetail?.let { prev ->
+                            stations.find { it.id == prev.id }
+                        },
                         governmentAnnouncements = govAnnouncements,
                         latestNotification = record,
                         notificationHistory = (listOf(record) + current.notificationHistory)
@@ -472,13 +489,37 @@ class WeatherViewModel(
         }
     }
 
+    /**
+     * Keeps weather metrics and river gauges in sync while the app is visible: refreshes immediately
+     * if the last sync is older than [AUTO_REFRESH_INTERVAL_MS], then every 10 minutes. Call from
+     * repeatOnLifecycle(STARTED) so it pauses in the background and resumes when reopened.
+     */
+    suspend fun runAutoRefreshLoop() {
+        while (true) {
+            val sinceLastSync = System.currentTimeMillis() - lastTelemetrySyncMillis
+            if (sinceLastSync >= AUTO_REFRESH_INTERVAL_MS) {
+                // Reuse a sync already in flight (e.g. the one started in init) instead of restarting it
+                val inFlight = telemetryRefreshJob?.takeIf { it.isActive }
+                (inFlight ?: refreshAllTelemetry()).join()
+                if (System.currentTimeMillis() - lastTelemetrySyncMillis >= AUTO_REFRESH_INTERVAL_MS) {
+                    delay(30_000L) // sync didn't complete; back off briefly before retrying
+                }
+            } else {
+                delay(AUTO_REFRESH_INTERVAL_MS - sinceLastSync)
+            }
+        }
+    }
+
     fun refreshAllTelemetry(
         region: SriLankaRegion = _uiState.value.selectedRegion,
         nearestCity: String = _uiState.value.selectedNearestCity
-    ) {
-        viewModelScope.launch {
+    ): Job {
+        // Cancel any in-flight sync so a slow response for a previous area can't overwrite newer data
+        telemetryRefreshJob?.cancel()
+        return viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            val report = repository.fetchRegionalReport(region)
+            val snapshots = repository.fetchIslandSnapshots()
+            val report = repository.fetchRegionalReport(region, nearestCity)
             val stations = repository.fetchLiveRiverStations(region)
             val alerts = repository.getAlertsForRegion(region, nearestCity, stations, report)
             val primaryStation = repository.findPrimaryStationForRegion(region, nearestCity, stations)
@@ -492,6 +533,7 @@ class WeatherViewModel(
             _uiState.update { state ->
                 state.copy(
                     isLoading = false,
+                    islandSnapshots = snapshots.ifEmpty { state.islandSnapshots },
                     regionalReport = report,
                     riverStations = stations,
                     alerts = alerts,
@@ -501,7 +543,15 @@ class WeatherViewModel(
                     }
                 )
             }
-        }
+            lastTelemetrySyncMillis = System.currentTimeMillis()
+        }.also { telemetryRefreshJob = it }
+    }
+
+    /** The river gauge most relevant to the selected town (null until stations have loaded). */
+    fun primaryStationForCurrentArea(): RiverGaugeStation? {
+        val state = _uiState.value
+        if (state.riverStations.isEmpty()) return null
+        return repository.findPrimaryStationForRegion(state.selectedRegion, state.selectedNearestCity, state.riverStations)
     }
 
     fun setAlertSeverityFilter(severity: AlertSeverity?) {
@@ -672,6 +722,10 @@ class WeatherViewModel(
                 )
             }
         }
+    }
+
+    companion object {
+        const val AUTO_REFRESH_INTERVAL_MS: Long = 10 * 60 * 1000L
     }
 
     private fun startRadarAnimationLoop() {

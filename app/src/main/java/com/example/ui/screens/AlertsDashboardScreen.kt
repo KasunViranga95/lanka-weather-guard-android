@@ -78,6 +78,11 @@ import com.example.model.RegionalWeatherReport
 import com.example.model.RiverGaugeStation
 import com.example.model.SriLankaRegion
 import com.example.model.WeatherAlert
+import com.example.ui.components.CurrentConditionsHero
+import com.example.ui.components.HomeQuickActions
+import com.example.ui.components.HourlyForecastStrip
+import com.example.ui.components.NearestRiverCard
+import com.example.ui.components.QuickStatsRow
 import com.example.ui.theme.AdaptiveBorderColor
 import com.example.ui.theme.AdaptiveCyanAccent
 import com.example.ui.theme.AdaptiveElevatedColor
@@ -108,6 +113,8 @@ fun AlertsDashboardScreen(
     selectedSeverityFilter: AlertSeverity?,
     regionalReport: RegionalWeatherReport,
     riverStations: List<RiverGaugeStation>,
+    primaryStation: RiverGaugeStation? = null,
+    isSyncing: Boolean = false,
     onRegionSelected: (SriLankaRegion) -> Unit,
     onSelectNotificationInterval: (NotificationIntervalOption) -> Unit,
     onRequestGpsLocation: () -> Unit,
@@ -144,99 +151,42 @@ fun AlertsDashboardScreen(
         modifier = modifier
             .fillMaxSize()
             .testTag("alerts_dashboard_list"),
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // 1. Clean Facebook-Style Location & Weather Status Card
+        // 1. Current conditions for the selected town
         item {
-            HeroCommandBanner(
-                selectedRegion = selectedRegion,
-                selectedNearestCity = selectedNearestCity,
-                gpsStatusMessage = gpsStatusMessage,
-                regionalReport = regionalReport,
-                majorFloodCount = majorFloodCount,
-                minorFloodCount = minorFloodCount,
-                riverStationTotal = riverStations.size,
-                onRequestGpsLocation = onRequestGpsLocation,
-                onOpenResidingLocationPicker = onOpenResidingLocationPicker,
-                onSendAreaNotificationNow = onSendAreaNotificationNow,
-                onRefreshTelemetry = onRefreshTelemetry,
-                onOpenRadarTab = onOpenRadarTab,
-                onOpenRiversTab = onOpenRiversTab,
-                onDialEmergencyDmc = onDialEmergencyDmc
+            CurrentConditionsHero(
+                report = regionalReport,
+                cityName = selectedNearestCity,
+                districtName = selectedRegion.name,
+                isSyncing = isSyncing,
+                onChangeArea = onOpenResidingLocationPicker
             )
         }
 
-        // 3. Sri Lanka 25-District Quick Selector Card
-        item {
-            Card(
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = AdaptiveSurfaceColor),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, AdaptiveBorderColor, RoundedCornerShape(14.dp))
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Sri Lanka Districts",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = AdaptivePrimaryText,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Search City →",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = AdaptiveCyanAccent,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .clickable { onOpenResidingLocationPicker() }
-                                .testTag("search_district_city_link")
-                        )
-                    }
+        // 2. At-a-glance stats
+        item { QuickStatsRow(report = regionalReport) }
 
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.testTag("region_selector_row")
-                    ) {
-                        items(regions, key = { it.id }) { region ->
-                            val isSelected = region.id == selectedRegion.id
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { onRegionSelected(region) },
-                                label = {
-                                    Text(
-                                        text = region.name,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                    )
-                                },
-                                leadingIcon = if (isSelected) {
-                                    {
-                                        Icon(
-                                            imageVector = Icons.Default.LocationOn,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                } else null,
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RadarCyan.copy(alpha = 0.18f),
-                                    selectedLabelColor = AdaptiveCyanAccent,
-                                    selectedLeadingIconColor = AdaptiveCyanAccent
-                                ),
-                                modifier = Modifier.testTag("region_chip_${region.id}")
-                            )
-                        }
-                    }
-                }
-            }
+        // 3. Big, clearly labelled actions
+        item {
+            HomeQuickActions(
+                onChangeArea = onOpenResidingLocationPicker,
+                onNotifyMe = onSendAreaNotificationNow,
+                onCallEmergency = onDialEmergencyDmc
+            )
+        }
+
+        // 4. Next 12 hours
+        item { HourlyForecastStrip(hourly = regionalReport.hourly, isLive = regionalReport.isLiveApiData) }
+
+        // 5. River that matters most for this area
+        item {
+            NearestRiverCard(
+                station = primaryStation,
+                floodingStationCount = majorFloodCount + minorFloodCount,
+                onOpenRivers = onOpenRiversTab
+            )
         }
 
         // 4. Active Safety Alerts Filter Header
@@ -258,15 +208,10 @@ fun AlertsDashboardScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Active Weather Alerts (${filteredAlerts.size})",
+                            text = "Weather alerts (${filteredAlerts.size})",
                             style = MaterialTheme.typography.titleSmall,
                             color = AdaptivePrimaryText,
                             fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = regionalReport.syncedTimestamp,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = AdaptiveSecondaryText
                         )
                     }
 
@@ -283,7 +228,7 @@ fun AlertsDashboardScreen(
                             FilterChip(
                                 selected = selectedSeverityFilter == AlertSeverity.CRITICAL_RED,
                                 onClick = { onSeverityFilterSelected(AlertSeverity.CRITICAL_RED) },
-                                label = { Text("Red Warning") },
+                                label = { Text("Severe") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = AlertRed.copy(alpha = 0.18f),
                                     selectedLabelColor = AlertRed
@@ -295,7 +240,7 @@ fun AlertsDashboardScreen(
                             FilterChip(
                                 selected = selectedSeverityFilter == AlertSeverity.MAJOR_AMBER,
                                 onClick = { onSeverityFilterSelected(AlertSeverity.MAJOR_AMBER) },
-                                label = { Text("Amber Watch") },
+                                label = { Text("Warning") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = WarningAmber.copy(alpha = 0.18f),
                                     selectedLabelColor = WarningAmber
@@ -357,340 +302,6 @@ fun AlertsDashboardScreen(
                     onSendNow = onSendAreaNotificationNow,
                     onOpenOfficialUrl = { onOpenOfficialUrl(latestNotification.officialPortalUrl) }
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HeroCommandBanner(
-    selectedRegion: SriLankaRegion,
-    selectedNearestCity: String,
-    gpsStatusMessage: String,
-    regionalReport: RegionalWeatherReport,
-    majorFloodCount: Int,
-    minorFloodCount: Int,
-    riverStationTotal: Int,
-    onRequestGpsLocation: () -> Unit,
-    onOpenResidingLocationPicker: () -> Unit,
-    onSendAreaNotificationNow: () -> Unit,
-    onRefreshTelemetry: () -> Unit,
-    onOpenRadarTab: () -> Unit,
-    onOpenRiversTab: () -> Unit,
-    onDialEmergencyDmc: () -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = AdaptiveSurfaceColor),
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, AdaptiveBorderColor, RoundedCornerShape(14.dp))
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // Facebook-Style Post Header: Avatar on left, Location & Status in center, Action Icons on right
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(RadarCyan.copy(alpha = 0.14f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = AdaptiveCyanAccent,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "$selectedNearestCity, ${selectedRegion.name}",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = AdaptivePrimaryText,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = gpsStatusMessage,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = AdaptiveSecondaryText,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onRequestGpsLocation,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(AdaptiveElevatedColor)
-                            .testTag("gps_detect_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.GpsFixed,
-                            contentDescription = "Detect GPS Location",
-                            tint = AdaptiveCyanAccent,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = onOpenResidingLocationPicker,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(AdaptiveElevatedColor)
-                            .testTag("open_location_picker_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.EditLocationAlt,
-                            contentDescription = "Change District & City",
-                            tint = AdaptiveTealAccent,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = onRefreshTelemetry,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(AdaptiveElevatedColor)
-                            .testTag("refresh_telemetry_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Refresh Weather",
-                            tint = AdaptivePrimaryText,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
-
-            // Clean 2x2 Weather Summary Grid
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TelemetryMetricPill(
-                        icon = Icons.Default.Thermostat,
-                        label = "Temperature",
-                        value = String.format(Locale.US, "%.1f°C", regionalReport.currentTempC),
-                        subtitle = "Feels like ${regionalReport.feelsLikeC.roundToInt()}°C",
-                        accentColor = SafeEmerald,
-                        modifier = Modifier.weight(1f)
-                    )
-                    TelemetryMetricPill(
-                        icon = Icons.Default.WaterDrop,
-                        label = "Rainfall",
-                        value = "${String.format(Locale.US, "%.1f", regionalReport.precipitationMm)} mm/h",
-                        subtitle = "24h total: ${regionalReport.rain24hMm.roundToInt()} mm",
-                        accentColor = if (regionalReport.rain24hMm >= 100) AlertRed else AdaptiveCyanAccent,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TelemetryMetricPill(
-                        icon = Icons.Default.Air,
-                        label = "Wind Gusts",
-                        value = "${regionalReport.windGustKmh.roundToInt()} km/h",
-                        subtitle = "Steady: ${regionalReport.windSpeedKmh.roundToInt()} km/h",
-                        accentColor = if (regionalReport.windGustKmh >= 55) WarningAmber else AdaptiveTealAccent,
-                        modifier = Modifier.weight(1f)
-                    )
-                    TelemetryMetricPill(
-                        icon = Icons.Default.WaterDrop,
-                        label = "Humidity",
-                        value = "${regionalReport.humidityPercent}%",
-                        subtitle = "${regionalReport.pressureHpa.roundToInt()} hPa",
-                        accentColor = AdaptiveCyanAccent,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            // Concise River Status Bar
-            Surface(
-                color = AlertRed.copy(alpha = 0.10f),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, AlertRed.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                    .clickable { onOpenRiversTab() }
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Flood,
-                            contentDescription = null,
-                            tint = AlertRed,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Column {
-                            Text(
-                                text = "River Flood Watch ($riverStationTotal Stations)",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = AdaptivePrimaryText,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = "$majorFloodCount Major Flood • $minorFloodCount Minor Flood",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = AlertRed,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                    Text(
-                        text = "River Index →",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = AdaptiveCyanAccent,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
-            }
-
-            HorizontalDivider(color = AdaptiveBorderColor)
-
-            // Facebook-Style Card Action Buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onOpenResidingLocationPicker,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AdaptiveCyanAccent),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("select_district_city_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.EditLocationAlt,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = "Change Area",
-                        style = MaterialTheme.typography.labelMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                Button(
-                    onClick = onSendAreaNotificationNow,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MonsoonTeal,
-                        contentColor = Color.White
-                    ),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("send_area_notification_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.NotificationsActive,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = "Notify Now",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = onOpenRadarTab,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = RadarCyan,
-                        contentColor = Color.White
-                    ),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("hero_open_radar_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Radar,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = "Live Weather Map",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                OutlinedButton(
-                    onClick = onDialEmergencyDmc,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AlertRed),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    modifier = Modifier.testTag("hero_call_dmc_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PhoneInTalk,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = "Call 117",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                }
             }
         }
     }
@@ -1218,61 +829,6 @@ private fun DispatchedNotificationBanner(
                     modifier = Modifier.clickable { onChangeLocation() }
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun TelemetryMetricPill(
-    icon: ImageVector,
-    label: String,
-    value: String,
-    subtitle: String = "",
-    accentColor: Color,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(AdaptiveElevatedColor)
-            .border(1.dp, accentColor.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = accentColor,
-                modifier = Modifier.size(15.dp)
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = AdaptiveSecondaryText,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleLarge,
-            color = AdaptivePrimaryText,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        if (subtitle.isNotEmpty()) {
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = accentColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
         }
     }
 }

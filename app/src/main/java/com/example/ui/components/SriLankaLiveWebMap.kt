@@ -59,6 +59,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.model.CityWeatherSnapshot
 import com.example.model.LiveMapOverlayMetric
 import com.example.model.RegionalWeatherReport
 import com.example.model.RiverGaugeStation
@@ -118,6 +119,7 @@ fun SriLankaLiveWebMap(
     stations: List<RiverGaugeStation>,
     regionalReport: RegionalWeatherReport,
     overlayMetric: LiveMapOverlayMetric,
+    islandSnapshots: List<CityWeatherSnapshot> = emptyList(),
     selectedStation: RiverGaugeStation? = null,
     onStationSelected: (RiverGaugeStation) -> Unit = {},
     modifier: Modifier = Modifier
@@ -158,8 +160,8 @@ fun SriLankaLiveWebMap(
         latLonToIslandFraction(userCityLat, userCityLon)
     }
 
-    val cityNodes = remember(selectedRegion.id, nearestCity, regionalReport, userMapX, userMapY) {
-        val baseNodes = mutableListOf(
+    val cityNodes = remember(selectedRegion.id, nearestCity, regionalReport, islandSnapshots, userMapX, userMapY) {
+        val referenceNodes = listOf(
             MapWeatherNode("Colombo", "Colombo", 0.25f, 0.72f, 28.4, 5.2, 164.0, 58, 88, 46),
             MapWeatherNode("Ratnapura", "Ratnapura", 0.44f, 0.77f, 26.2, 8.6, 212.0, 62, 94, 56),
             MapWeatherNode("Galle", "Galle", 0.35f, 0.91f, 27.8, 4.8, 158.0, 64, 89, 44),
@@ -174,13 +176,20 @@ fun SriLankaLiveWebMap(
             MapWeatherNode("Batticaloa", "Batticaloa", 0.79f, 0.56f, 30.6, 1.6, 52.0, 40, 76, 25),
             MapWeatherNode("Hambantota", "Hambantota", 0.62f, 0.89f, 29.8, 1.9, 64.0, 54, 78, 27)
         )
-        val userDbz = when {
-            regionalReport.precipitationMm >= 8.0 || regionalReport.rain24hMm >= 180.0 -> 55
-            regionalReport.precipitationMm >= 5.0 || regionalReport.rain24hMm >= 120.0 -> 47
-            regionalReport.precipitationMm >= 2.5 || regionalReport.rain24hMm >= 70.0 -> 38
-            regionalReport.precipitationMm >= 1.0 -> 29
-            else -> 21
-        }
+        // Replace reference values with live conditions; towns without live data are left off the map
+        val baseNodes = referenceNodes.mapNotNull { node ->
+            val live = islandSnapshots.firstOrNull { it.name.equals(node.name, ignoreCase = true) }
+                ?: return@mapNotNull null
+            node.copy(
+                tempC = live.tempC,
+                hourlyPrecipMm = live.precipitationMm,
+                rain24hMm = live.rainTodayMm,
+                dbzEstimate = estimateDbz(live.precipitationMm, live.rainTodayMm),
+                windKmh = live.windGustKmh.roundToInt(),
+                humidity = live.humidityPercent
+            )
+        }.toMutableList()
+        val userDbz = estimateDbz(regionalReport.precipitationMm, regionalReport.rain24hMm)
         val userNode = MapWeatherNode(
             name = nearestCity,
             district = selectedRegion.name,
@@ -671,4 +680,13 @@ fun SriLankaLiveWebMap(
             )
         }
     }
+}
+
+// Approximate radar reflectivity implied by the current rain rate / daily total
+private fun estimateDbz(precipMmPerHour: Double, rain24hMm: Double): Int = when {
+    precipMmPerHour >= 8.0 || rain24hMm >= 180.0 -> 55
+    precipMmPerHour >= 5.0 || rain24hMm >= 120.0 -> 47
+    precipMmPerHour >= 2.5 || rain24hMm >= 70.0 -> 38
+    precipMmPerHour >= 1.0 -> 29
+    else -> 21
 }

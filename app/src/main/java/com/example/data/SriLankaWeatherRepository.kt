@@ -1,6 +1,7 @@
 package com.example.data
 
 import com.example.model.ActivitySafetyAssessment
+import com.example.model.CityWeatherSnapshot
 import com.example.model.AlertSeverity
 import com.example.model.DailyForecastItem
 import com.example.model.EmergencyShelter
@@ -12,16 +13,23 @@ import com.example.model.RiverGaugeStation
 import com.example.model.SafetyChecklistItem
 import com.example.model.SriLankaRegion
 import com.example.model.WeatherAlert
+import com.example.network.IrrigationGaugeReading
+import com.example.network.TEMPERATURE_ENSEMBLE_MODELS
 import com.example.network.WeatherNetworkClient
 import com.example.ui.theme.AdvisoryYellow
 import com.example.ui.theme.AlertRed
 import com.example.ui.theme.SafeEmerald
 import com.example.ui.theme.WarningAmber
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -1227,6 +1235,15 @@ class SriLankaWeatherRepository {
         } ?: regions.first()
     }
 
+    /** Nearest residing-area town (and its district) to a GPS fix, so weather is fetched for that town. */
+    fun findNearestCity(latitude: Double, longitude: Double): Pair<SriLankaRegion, String> {
+        return regions.flatMap { region -> region.nearestCities.map { city -> region to city } }
+            .minByOrNull { (region, city) ->
+                val (lat, lon) = region.getCoordinatesForCity(city)
+                haversineKm(latitude, longitude, lat, lon)
+            } ?: (findNearestRegion(latitude, longitude).let { it to (it.nearestCities.firstOrNull() ?: it.name) })
+    }
+
     fun findPrimaryStationForRegion(
         region: SriLankaRegion,
         nearestCity: String,
@@ -1264,26 +1281,58 @@ class SriLankaWeatherRepository {
         return 2 * r * atan2(sqrt(a), sqrt(1 - a))
     }
 
-    suspend fun fetchRegionalReport(region: SriLankaRegion): RegionalWeatherReport =
+    // Last live report per location, shown (marked offline) if a later sync fails
+    private val lastLiveReports = ConcurrentHashMap<String, RegionalWeatherReport>()
+
+    /**
+     * Weather for the selected town (or an exact GPS fix) rather than the district centre — hill-country
+     * towns in one district can differ by 5–10 °C. Temperatures are the median of [TEMPERATURE_ENSEMBLE_MODELS].
+     */
+    suspend fun fetchRegionalReport(
+        region: SriLankaRegion,
+        nearestCity: String? = null,
+        exactLatLon: Pair<Double, Double>? = null
+    ): RegionalWeatherReport =
         withContext(Dispatchers.IO) {
-            val timestamp = SimpleDateFormat("HH:mm 'SLST'", Locale.US).format(Date())
+            val now = Date()
+            val timestamp = slstFormat("HH:mm 'SLST'").format(now)
+            val (lat, lon) = exactLatLon
+                ?: nearestCity?.let { region.getCoordinatesForCity(it) }
+                ?: (region.latitude to region.longitude)
+            val cacheKey = String.format(Locale.US, "%.3f,%.3f", lat, lon)
             try {
-                val response = WeatherNetworkClient.openMeteoService.getForecast(
-                    latitude = region.latitude,
-                    longitude = region.longitude
-                )
-                val current = response.current
+                val (response, ensembleResponse) = coroutineScope {
+                    val forecast = async { WeatherNetworkClient.openMeteoService.getForecast(lat, lon) }
+                    val ensemble = async {
+                        // Optional: if the multi-model call fails we still have the single best-match model
+                        runCatching { WeatherNetworkClient.openMeteoService.getMultiModelTemperatures(lat, lon) }.getOrNull()
+                    }
+                    forecast.await() to ensemble.await()
+                }
+                val current = response.current ?: error("No current conditions in response")
                 val hourly = response.hourly
                 val daily = response.daily
 
-                val tempC = current?.temperature2m ?: 27.4
-                val feelsLikeC = current?.apparentTemperature ?: 31.2
-                val humidity = current?.relativeHumidity2m ?: 86
-                val precipMm = current?.precipitation ?: 4.2
-                val windSpeed = current?.windSpeed10m ?: 28.0
-                val windGust = current?.windGusts10m ?: 46.0
-                val pressure = current?.surfacePressure ?: 1007.5
-                val weatherCode = current?.weatherCode ?: 63
+                val nowHourKey = slstFormat("yyyy-MM-dd'T'HH:00").format(now)
+                val minuteFraction = slstFormat("mm").format(now).toDouble() / 60.0
+                val ensembleHourly = ensembleResponse?.hourly
+                val ensembleNowIdx = ensembleHourly.timeIndexOf(nowHourKey)
+                val forecastNowIdx = hourly?.time?.indexOf(nowHourKey)?.takeIf { it >= 0 } ?: 0
+                val modelCount = TEMPERATURE_ENSEMBLE_MODELS.count { model ->
+                    ensembleHourly.modelSeries("temperature_2m", model).getOrNull(ensembleNowIdx) != null
+                }
+
+                val tempC = ensembleHourly.medianAt("temperature_2m", ensembleNowIdx, minuteFraction)
+                    ?: current.temperature2m ?: error("No temperature in response")
+                val feelsLikeC = ensembleHourly.medianAt("apparent_temperature", ensembleNowIdx, minuteFraction)
+                    ?: current.apparentTemperature ?: tempC
+                val humidity = ensembleHourly.medianAt("relative_humidity_2m", ensembleNowIdx, minuteFraction)?.roundToInt()
+                    ?: current.relativeHumidity2m ?: 80
+                val precipMm = current.precipitation ?: 0.0
+                val windSpeed = current.windSpeed10m ?: 0.0
+                val windGust = current.windGusts10m ?: windSpeed
+                val pressure = current.surfacePressure ?: 1010.0
+                val weatherCode = current.weatherCode ?: 0
 
                 val hourlyItems = buildList {
                     val times = hourly?.time.orEmpty()
@@ -1292,14 +1341,15 @@ class SriLankaWeatherRepository {
                     val probs = hourly?.precipitationProbability.orEmpty()
                     val gusts = hourly?.windGusts10m.orEmpty()
                     val codes = hourly?.weatherCode.orEmpty()
-                    val limit = minOf(12, times.size)
-                    for (i in 0 until limit) {
+                    for (i in forecastNowIdx until minOf(forecastNowIdx + 12, times.size)) {
                         val rawTime = times.getOrNull(i) ?: ""
+                        val ensembleIdx = ensembleHourly.timeIndexOf(rawTime)
                         val shortTime = rawTime.substringAfter("T", rawTime).ifEmpty { "${(i * 2) % 24}:00" }
                         add(
                             HourlyForecastItem(
                                 timeLabel = shortTime,
-                                tempC = temps.getOrNull(i) ?: tempC,
+                                tempC = ensembleHourly.medianAt("temperature_2m", ensembleIdx)
+                                    ?: temps.getOrNull(i) ?: tempC,
                                 rainMm = rains.getOrNull(i) ?: 0.0,
                                 rainProbability = probs.getOrNull(i) ?: 65,
                                 windGustKmh = gusts.getOrNull(i) ?: windGust,
@@ -1311,6 +1361,7 @@ class SriLankaWeatherRepository {
 
                 val dailyItems = buildList {
                     val dates = daily?.time.orEmpty()
+                    val ensembleDaily = ensembleResponse?.daily
                     val maxTemps = daily?.temperature2mMax.orEmpty()
                     val minTemps = daily?.temperature2mMin.orEmpty()
                     val rainSums = daily?.precipitationSum.orEmpty()
@@ -1331,8 +1382,10 @@ class SriLankaWeatherRepository {
                             DailyForecastItem(
                                 dayLabel = dayNames.getOrElse(i) { "Day ${i + 1}" },
                                 dateLabel = dates.getOrNull(i)?.takeLast(5) ?: "",
-                                maxTempC = maxTemps.getOrNull(i) ?: 30.0,
-                                minTempC = minTemps.getOrNull(i) ?: 24.0,
+                                maxTempC = ensembleDaily.medianAt("temperature_2m_max", i)
+                                    ?: maxTemps.getOrNull(i) ?: tempC,
+                                minTempC = ensembleDaily.medianAt("temperature_2m_min", i)
+                                    ?: minTemps.getOrNull(i) ?: tempC,
                                 totalRainMm = rainTotal,
                                 maxRainProb = maxProbs.getOrNull(i) ?: 70,
                                 maxWindKmh = gustMax,
@@ -1347,6 +1400,7 @@ class SriLankaWeatherRepository {
 
                 RegionalWeatherReport(
                     region = region,
+                    locationName = nearestCity ?: region.name,
                     currentTempC = tempC,
                     feelsLikeC = feelsLikeC,
                     humidityPercent = humidity,
@@ -1355,45 +1409,219 @@ class SriLankaWeatherRepository {
                     windSpeedKmh = windSpeed,
                     windGustKmh = windGust,
                     weatherDescription = describeWmoCode(weatherCode, rain24h),
+                    weatherCode = weatherCode,
                     pressureHpa = pressure,
                     hourly = hourlyItems,
                     daily = dailyItems,
                     activityAssessments = computeActivitySafety(region, rain24h, windGust),
                     isLiveApiData = true,
-                    syncedTimestamp = "Live Open-Meteo • $timestamp"
-                )
+                    syncedTimestamp = if (modelCount >= 2) {
+                        "Live • $modelCount-model blend • $timestamp"
+                    } else {
+                        "Live Open-Meteo • $timestamp"
+                    }
+                ).also { lastLiveReports[cacheKey] = it }
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
-                buildFallbackRegionalReport(region, timestamp)
+                lastLiveReports[cacheKey]?.let { cached ->
+                    cached.copy(syncedTimestamp = "Offline • showing ${cached.syncedTimestamp.substringAfterLast("• ")} data")
+                } ?: buildFallbackRegionalReport(region, timestamp).copy(locationName = nearestCity ?: region.name)
             }
         }
 
+    // App station id → gauge name in the Irrigation Department hydrology feed
+    private val irrigationGaugeNames: Map<String, String> = mapOf(
+        "kelani_nagalagam" to "Nagalagam Street",
+        "kelani_hanwella" to "Hanwella",
+        "kelani_glencorse" to "Glencourse",
+        "kelani_kitulgala" to "Kithulgala",
+        "kelani_holombuwa" to "Holombuwa",
+        "kelani_deraniyagala" to "Deraniyagala",
+        "kelani_norwood" to "Norwood",
+        "kalu_ratnapura" to "Rathnapura",
+        "kalu_ellagawa" to "Ellagawa",
+        "kalu_putupaula" to "Putupaula",
+        "kalu_millakanda" to "Kalawellawa (Millakanda)",
+        "kalu_magura" to "Magura",
+        "gin_baddegama" to "Baddegama",
+        "gin_tawalama" to "Thawalama",
+        "nilwala_panadugama" to "Panadugama",
+        "nilwala_pitabeddara" to "Pitabeddara",
+        "nilwala_urawa" to "Urawa",
+        "walawe_moraketiya" to "Moraketiya",
+        "kirindi_thanamalwila" to "Thanamalwila",
+        "kirindi_wellawaya" to "Wellawaya",
+        "menik_kataragama" to "Katharagama",
+        "kumbukkan_nakkala" to "Nakkala",
+        "heda_siyambalanduwa" to "Siyambalanduwa",
+        "mahaweli_peradeniya" to "Peradeniya",
+        "mahaweli_nawalapitiya" to "Nawalapitiya",
+        "mahaweli_weragantota" to "Weraganthota",
+        "mahaweli_manampitiya" to "Manampitiya",
+        "yan_horowpothana" to "Horowpothana",
+        "malwathu_thanthirimale" to "Thanthirimale",
+        "deduru_moragaswewa" to "Moragaswewa",
+        "maha_giriulla" to "Giriulla",
+        "maha_badalgama" to "Badalgama",
+        "attanagalu_dunamale" to "Dunamale"
+    )
+
+    // Last successful live sync, reused if a later refresh fails so gauges don't snap back to reference values
+    @Volatile
+    private var lastLiveStations: List<RiverGaugeStation>? = null
+
+    private suspend fun fetchIrrigationReadings24h(): List<IrrigationGaugeReading> {
+        val readings = mutableListOf<IrrigationGaugeReading>()
+        var offset = 0
+        // ~1 reading/gauge/hour ≈ 950 rows per day; page in case of extra storm-time readings
+        repeat(4) {
+            val page = WeatherNetworkClient.irrigationGaugeService.queryReadings(resultOffset = offset)
+            val pageReadings = page.features.orEmpty().mapNotNull { it.attributes }
+            readings += pageReadings
+            if (page.exceededTransferLimit != true || pageReadings.isEmpty()) return readings
+            offset += pageReadings.size
+        }
+        return readings
+    }
+
+    private suspend fun fetchStationDischarges(): List<Double?> {
+        val response = WeatherNetworkClient.floodService.getRiverDischargeForLocations(
+            latitudes = baseStations.joinToString(",") { it.latitude.toString() },
+            longitudes = baseStations.joinToString(",") { it.longitude.toString() }
+        )
+        return baseStations.indices.map { idx ->
+            response.getOrNull(idx)?.daily?.riverDischarge?.firstOrNull()
+        }
+    }
+
     suspend fun fetchLiveRiverStations(selectedRegion: SriLankaRegion): List<RiverGaugeStation> =
         withContext(Dispatchers.IO) {
-            val syncedTime = SimpleDateFormat("HH:mm 'SLST'", Locale.US).format(Date())
-            val dischargeSample = try {
-                val floodResp = WeatherNetworkClient.floodService.getRiverDischarge(
-                    latitude = selectedRegion.latitude,
-                    longitude = selectedRegion.longitude
-                )
-                floodResp.daily?.riverDischarge?.firstOrNull()
+            val syncedTime = slstFormat("HH:mm").format(Date())
+            val readingsByGauge = try {
+                fetchIrrigationReadings24h()
+                    .filter { it.gauge != null && it.waterLevelM != null && it.creationDateMillis != null }
+                    .groupBy { it.gauge!!.trim().lowercase(Locale.US) }
+                    .mapValues { (_, list) -> list.sortedBy { it.creationDateMillis } }
+            } catch (_: Exception) {
+                null
+            }
+            val discharges = try {
+                fetchStationDischarges()
             } catch (_: Exception) {
                 null
             }
 
-            baseStations.map { station ->
-                val adjustedDischarge = if (station.district.equals(selectedRegion.name, ignoreCase = true) &&
-                    dischargeSample != null && dischargeSample > 10.0
-                ) {
-                    dischargeSample
-                } else {
-                    station.dischargeM3s
+            if (readingsByGauge.isNullOrEmpty()) {
+                lastLiveStations?.let { cached ->
+                    return@withContext cached.map {
+                        it.copy(lastUpdatedText = "${it.lastUpdatedText} • offline, retry $syncedTime")
+                    }
                 }
+            }
+
+            val stations = baseStations.mapIndexed { idx, station ->
+                val discharge = discharges?.getOrNull(idx)?.takeIf { it >= 0.0 } ?: station.dischargeM3s
+                val gaugeName = irrigationGaugeNames[station.id]?.lowercase(Locale.US)
+                val history = gaugeName?.let { readingsByGauge?.get(it) }
+                val latest = history?.lastOrNull()
+                if (history == null || latest == null) {
+                    return@mapIndexed station.copy(
+                        dischargeM3s = discharge,
+                        lastUpdatedText = "Reference level • live gauge unavailable ($syncedTime)"
+                    )
+                }
+                val levels = history.mapNotNull { it.waterLevelM }
+                val readingTime = slstFormat("HH:mm").format(Date(latest.creationDateMillis!!))
                 station.copy(
-                    dischargeM3s = adjustedDischarge,
-                    lastUpdatedText = "Synced $syncedTime • RiverWatch.LK"
+                    currentLevelM = levels.last(),
+                    previousLevelM = levels.getOrElse(levels.size - 2) { levels.last() },
+                    alertLevelM = latest.alertLevelM?.takeIf { it > 0.0 } ?: station.alertLevelM,
+                    minorFloodLevelM = latest.minorFloodLevelM?.takeIf { it > 0.0 } ?: station.minorFloodLevelM,
+                    majorFloodLevelM = latest.majorFloodLevelM?.takeIf { it > 0.0 } ?: station.majorFloodLevelM,
+                    catchmentRainMm24h = history.sumOf { it.rainFallMm ?: 0.0 },
+                    dischargeM3s = discharge,
+                    hourlyLevelsM = levels.takeLast(6),
+                    history24hM = levels,
+                    lastUpdatedText = "Gauge read $readingTime • synced $syncedTime SLST • Irrigation Dept"
                 )
             }
+            if (!readingsByGauge.isNullOrEmpty()) lastLiveStations = stations
+            stations
         }
+
+    // Towns shown on the island overview map (name, district)
+    private val islandMapTowns = listOf(
+        "Colombo" to "Colombo", "Ratnapura" to "Ratnapura", "Galle" to "Galle", "Matara" to "Matara",
+        "Kandy" to "Kandy", "Nuwara Eliya" to "Nuwara Eliya", "Kalutara" to "Kalutara", "Gampaha" to "Gampaha",
+        "Anuradhapura" to "Anuradhapura", "Jaffna" to "Jaffna", "Trincomalee" to "Trincomalee",
+        "Batticaloa" to "Batticaloa", "Hambantota" to "Hambantota"
+    )
+
+    /** Live current conditions for every map town in a single request; empty if offline. */
+    suspend fun fetchIslandSnapshots(): List<CityWeatherSnapshot> = withContext(Dispatchers.IO) {
+        val coords = islandMapTowns.map { (town, district) ->
+            val region = regions.firstOrNull { it.name == district } ?: regions.first()
+            region.getCoordinatesForCity(town)
+        }
+        try {
+            val responses = WeatherNetworkClient.openMeteoService.getCurrentForLocations(
+                latitudes = coords.joinToString(",") { it.first.toString() },
+                longitudes = coords.joinToString(",") { it.second.toString() }
+            )
+            islandMapTowns.mapIndexedNotNull { idx, (town, district) ->
+                val current = responses.getOrNull(idx)?.current ?: return@mapIndexedNotNull null
+                val rainToday = responses[idx].daily?.precipitationSum?.firstOrNull() ?: 0.0
+                CityWeatherSnapshot(
+                    name = town,
+                    district = district,
+                    tempC = current.temperature2m ?: return@mapIndexedNotNull null,
+                    humidityPercent = current.relativeHumidity2m ?: 0,
+                    precipitationMm = current.precipitation ?: 0.0,
+                    rainTodayMm = rainToday,
+                    windGustKmh = current.windGusts10m ?: 0.0
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    // Instant, offline-safe values shown until the first live sync completes
+    fun getReferenceStations(): List<RiverGaugeStation> =
+        baseStations.map { it.copy(lastUpdatedText = "Syncing live gauges…") }
+
+    fun getPlaceholderRegionalReport(region: SriLankaRegion, nearestCity: String): RegionalWeatherReport =
+        buildFallbackRegionalReport(region, slstFormat("HH:mm 'SLST'").format(Date()))
+            .copy(locationName = nearestCity, syncedTimestamp = "Syncing live weather…")
+
+    // ---- Multi-model blend helpers (Open-Meteo returns one "<variable>_<model>" series per model) ----
+
+    private fun Map<String, Any?>?.timeIndexOf(timeKey: String): Int =
+        (this?.get("time") as? List<*>)?.indexOf(timeKey) ?: -1
+
+    private fun Map<String, Any?>?.modelSeries(variable: String, model: String): List<Double?> =
+        (this?.get("${variable}_$model") as? List<*>)?.map { (it as? Number)?.toDouble() }.orEmpty()
+
+    /** Median across models at [index], linearly interpolated [fraction] of the way to the next step. */
+    private fun Map<String, Any?>?.medianAt(variable: String, index: Int, fraction: Double = 0.0): Double? {
+        if (this == null || index < 0) return null
+        val values = TEMPERATURE_ENSEMBLE_MODELS.mapNotNull { model ->
+            val series = modelSeries(variable, model)
+            val a = series.getOrNull(index) ?: return@mapNotNull null
+            val b = series.getOrNull(index + 1) ?: a
+            a + (b - a) * fraction
+        }.sorted()
+        if (values.isEmpty()) return null
+        val mid = values.size / 2
+        val median = if (values.size % 2 == 1) values[mid] else (values[mid - 1] + values[mid]) / 2.0
+        return (median * 10).roundToInt() / 10.0
+    }
+
+    private fun slstFormat(pattern: String): SimpleDateFormat =
+        SimpleDateFormat(pattern, Locale.US).apply { timeZone = TimeZone.getTimeZone("Asia/Colombo") }
 
     fun getAlertsForRegion(
         selectedRegion: SriLankaRegion,
@@ -1894,7 +2122,7 @@ class SriLankaWeatherRepository {
             daily = daily,
             activityAssessments = computeActivitySafety(region, todayRain, maxGust),
             isLiveApiData = false,
-            syncedTimestamp = "Met Hydrology Feed • $timestamp"
+            syncedTimestamp = "Offline estimate • no connection at $timestamp"
         )
     }
 }
