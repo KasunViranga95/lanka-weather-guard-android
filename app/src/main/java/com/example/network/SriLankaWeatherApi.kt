@@ -8,6 +8,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Query
+import retrofit2.http.Url
 import java.util.concurrent.TimeUnit
 
 data class OpenMeteoResponse(
@@ -89,7 +90,30 @@ interface IrrigationGaugeService {
         @Query("resultRecordCount") resultRecordCount: Int = 1000,
         @Query("f") format: String = "json"
     ): IrrigationGaugeQueryResponse
+
+    // Official station list; its "Unit" column says whether a gauge reports in metres or feet
+    @GET
+    suspend fun queryStationUnits(
+        @Url url: String = "https://services3.arcgis.com/J7ZFXmR8rSmQ3FGf/arcgis/rest/services/hydrostations/FeatureServer/0/query",
+        @Query("where") where: String = "1=1",
+        @Query("outFields") outFields: String = "station,Unit",
+        @Query("returnGeometry") returnGeometry: Boolean = false,
+        @Query("f") format: String = "json"
+    ): HydroStationQueryResponse
 }
+
+data class HydroStationQueryResponse(
+    @Json(name = "features") val features: List<HydroStationFeature>?
+)
+
+data class HydroStationFeature(
+    @Json(name = "attributes") val attributes: HydroStationAttributes?
+)
+
+data class HydroStationAttributes(
+    @Json(name = "station") val station: String?,
+    @Json(name = "Unit") val unit: String?
+)
 
 interface OpenMeteoService {
     @GET("v1/forecast")

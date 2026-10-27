@@ -588,6 +588,8 @@ data class WeatherAlert(
     val isUserDistrictMatch: Boolean = false
 )
 
+const val FEET_TO_METRES = 0.3048
+
 data class RiverGaugeStation(
     val id: String,
     val stationName: String,
@@ -610,8 +612,14 @@ data class RiverGaugeStation(
     val downstreamTowns: List<String>,
     val tributaryOf: String? = null,
     // Live gauge readings over the last 24h (oldest → newest); empty when the feed is unavailable
-    val history24hM: List<Double> = emptyList()
+    val history24hM: List<Double> = emptyList(),
+    // Unit the Irrigation Dept publishes this gauge in ("m" or "ft"); all *M fields are always metres
+    val sourceUnit: String = "m"
 ) {
+    /** Level as published by the Irrigation Dept, e.g. "12.1 ft", for gauges people know in feet. */
+    val publishedLevelText: String?
+        get() = if (sourceUnit == "ft") String.format(java.util.Locale.US, "%.1f ft", currentLevelM / FEET_TO_METRES) else null
+
     val floodStatus: FloodStatus
         get() = when {
             currentLevelM >= majorFloodLevelM -> FloodStatus.MAJOR_FLOOD

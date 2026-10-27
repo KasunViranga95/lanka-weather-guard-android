@@ -267,20 +267,6 @@ fun LankaWeatherGuardApp(
             }
         }
 
-        val selectGeneratedNotificationAction: (DispatchedNotificationRecord) -> Unit = { record ->
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                pendingNotificationRecord = record
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            } else {
-                weatherViewModel.selectAndPostGeneratedNotification(context, record)
-            }
-        }
-
         if (uiState.showResidingLocationDialog) {
             ResidingLocationDialog(
                 regions = uiState.regions,
@@ -497,43 +483,18 @@ fun LankaWeatherGuardApp(
             ) {
                 when (uiState.currentTab) {
                     AppTab.ALERTS -> AlertsDashboardScreen(
-                        regions = uiState.regions,
                         selectedRegion = uiState.selectedRegion,
                         selectedNearestCity = uiState.selectedNearestCity,
-                        selectedNotificationInterval = uiState.selectedNotificationInterval,
-                        gpsStatusMessage = uiState.gpsStatusMessage,
-                        latestNotification = uiState.latestNotification,
-                        notificationHistory = uiState.notificationHistory,
-                        residingGovAnnouncement = uiState.governmentAnnouncements.firstOrNull(),
                         alerts = uiState.alerts,
-                        selectedSeverityFilter = uiState.selectedAlertSeverityFilter,
                         regionalReport = uiState.regionalReport,
                         riverStations = uiState.riverStations,
                         primaryStation = primaryStationForArea,
                         isSyncing = uiState.isLoading,
-                        onRegionSelected = { region ->
-                            weatherViewModel.confirmResidingLocationAndNotify(
-                                context = context,
-                                region = region,
-                                nearestCity = region.nearestCities.firstOrNull() ?: region.name,
-                                fromGps = false
-                            )
-                        },
-                        onSelectNotificationInterval = { interval ->
-                            weatherViewModel.selectNotificationInterval(context, interval)
-                        },
-                        onRequestGpsLocation = requestLocationAction,
                         onOpenResidingLocationPicker = {
                             weatherViewModel.openResidingLocationDialog(permissionDenied = false)
                         },
                         onSendAreaNotificationNow = sendNotificationForCurrentAreaAction,
-                        onSelectGeneratedNotification = selectGeneratedNotificationAction,
-                        onRefreshTelemetry = { weatherViewModel.refreshAllTelemetry() },
-                        onSeverityFilterSelected = { weatherViewModel.setAlertSeverityFilter(it) },
-                        onOpenRadarTab = { weatherViewModel.selectTab(AppTab.RADAR) },
                         onOpenRiversTab = { weatherViewModel.selectTab(AppTab.RIVERS) },
-                        onOpenSafetyTab = { weatherViewModel.selectTab(AppTab.SAFETY) },
-                        onOpenOfficialUrl = { url -> openExternalGovernmentUrl(context, url) },
                         onDialEmergencyDmc = { dialEmergencyNumber(context, "117") }
                     )
 

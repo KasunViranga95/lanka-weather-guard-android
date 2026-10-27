@@ -12,7 +12,7 @@
     <string name="emergency_dial_dmc">Call DMC 117</string>
     <string name="emergency_dial_ambulance">Suwa Seriya 1990</string>
     <string name="share_safety_report">Share Situation Report</string>
-    <string name="search_rivers_hint">Search river basin, gauging station, or district…</string>
+    <string name="search_rivers_hint">Search river, gauge or town</string>
     <string name="radar_play">Play Radar Loop</string>
     <string name="radar_pause">Pause Radar Loop</string>
 </resources>

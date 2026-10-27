@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import com.example.ui.components.SectionCard
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,7 +21,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -44,6 +45,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -123,9 +125,6 @@ fun SafetyHubScreen(
         "Public Services & Schools"
     )
 
-    val residingAnnouncement = governmentAnnouncements.firstOrNull { it.category == "Residing Area Directive" }
-        ?: governmentAnnouncements.firstOrNull()
-
     val filteredGovNews = remember(governmentAnnouncements, selectedGovCategoryFilter) {
         when (selectedGovCategoryFilter) {
             "All Official" -> governmentAnnouncements
@@ -136,12 +135,10 @@ fun SafetyHubScreen(
         }
     }
 
-    // All top safety & contact tiles start collapsed so the user can click any tile to expand and view
-    var expandHotlinesTile by remember { mutableStateOf(false) }
+    // The "Be prepared" rows start collapsed so the tab opens on the emergency numbers
     var expandSheltersTile by remember { mutableStateOf(false) }
     var expandChecklistTile by remember { mutableStateOf(false) }
     var expandScheduleTile by remember { mutableStateOf(false) }
-    var expandAllMessages by remember { mutableStateOf(false) }
 
     val completedCount = checklist.count { it.isChecked }
     val progress = if (checklist.isNotEmpty()) completedCount.toFloat() / checklist.size else 0f
@@ -155,273 +152,102 @@ fun SafetyHubScreen(
         modifier = modifier
             .fillMaxSize()
             .testTag("safety_hub_list"),
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // 1. Clean Safety Hub Header Card
+        // 1. Emergency numbers – always visible, one tap to call
         item {
-            Card(
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = AdaptiveSurfaceColor),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, AdaptiveBorderColor, RoundedCornerShape(14.dp))
+            SectionCard(
+                title = "Emergency numbers",
+                actionLabel = "Share",
+                onAction = onShareSafetyReport,
+                modifier = Modifier.testTag("expandable_hotlines_tile")
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                hotlines.forEachIndexed { idx, hotline ->
+                    if (idx > 0) HorizontalDivider(color = AdaptiveBorderColor)
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onDialNumber(hotline.number) }
+                            .padding(vertical = 6.dp)
+                            .testTag("hotline_card_${hotline.number}"),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.weight(1f)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(SafeEmerald.copy(alpha = 0.14f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.HealthAndSafety,
-                                contentDescription = null,
-                                tint = SafeEmerald,
-                                modifier = Modifier.size(22.dp)
-                            )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(hotline.agency, style = MaterialTheme.typography.bodyLarge, color = AdaptivePrimaryText, fontWeight = FontWeight.SemiBold)
+                            Text(hotline.role, style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
                         }
-                        Column {
-                            Text(
-                                text = "Safety Hub & Emergency Directory",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = AdaptivePrimaryText,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "$selectedNearestCity, ${selectedRegion.name} • Tap any tile below to expand & view",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = AdaptiveSecondaryText
-                            )
-                        }
-                    }
-
-                    Button(
-                        onClick = onShareSafetyReport,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = RadarCyan,
-                            contentColor = Color.White
-                        ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        modifier = Modifier.testTag("share_safety_report_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = null,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Share", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        Text(hotline.number, style = MaterialTheme.typography.titleMedium, color = hotline.color, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.Call, contentDescription = "Call ${hotline.number}", tint = hotline.color, modifier = Modifier.size(20.dp))
                     }
                 }
             }
         }
 
-        // 2. TOP TILE 1: 24/7 Emergency Contacts & Hotlines (Click tile to expand & dial)
+        // 2. Be prepared – shelters, checklist and alert schedule as rows of one card
         item {
-            ExpandableSectionTile(
-                title = "24/7 Emergency Contacts & Hotlines",
-                subtitle = "DMC 117 • Ambulance 1990 • Police 119 • Navy Rescue (Tap to expand)",
-                icon = Icons.Default.Call,
-                accentColor = AlertRed,
-                expanded = expandHotlinesTile,
-                onToggleExpand = { expandHotlinesTile = !expandHotlinesTile },
-                testTag = "expandable_hotlines_tile"
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    hotlines.chunked(2).forEach { pair ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            pair.forEach { hotline ->
-                                Surface(
-                                    color = AdaptiveElevatedColor,
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .border(1.dp, hotline.color.copy(alpha = 0.40f), RoundedCornerShape(12.dp))
-                                        .clickable { onDialNumber(hotline.number) }
-                                        .testTag("hotline_card_${hotline.number}")
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(12.dp),
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = hotline.number,
-                                                style = MaterialTheme.typography.titleLarge,
-                                                color = hotline.color,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Icon(
-                                                imageVector = Icons.Default.Call,
-                                                contentDescription = "Dial ${hotline.number}",
-                                                tint = hotline.color,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                        Text(
-                                            text = hotline.agency,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = AdaptivePrimaryText,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            text = hotline.role,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = AdaptiveSecondaryText
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. TOP TILE 2: High-Ground Evacuation Shelters (Click tile to expand & view)
-        item {
-            ExpandableSectionTile(
-                title = "High-Ground Evacuation Shelters (${sortedShelters.size})",
-                subtitle = "Nearest shelters for ${selectedRegion.name} District (Tap to expand)",
-                icon = Icons.Default.HomeWork,
-                accentColor = WarningAmber,
-                expanded = expandSheltersTile,
-                onToggleExpand = { expandSheltersTile = !expandSheltersTile },
-                testTag = "expandable_shelters_tile"
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SectionCard(title = "Be prepared") {
+                ExpandableRow(
+                    icon = Icons.Default.HomeWork,
+                    title = "Evacuation shelters",
+                    subtitle = "${sortedShelters.size} near ${selectedRegion.name}",
+                    expanded = expandSheltersTile,
+                    onToggle = { expandSheltersTile = !expandSheltersTile },
+                    testTag = "expandable_shelters_tile"
+                ) {
                     sortedShelters.forEach { shelter ->
                         val isLocalMatch = shelter.district.equals(selectedRegion.name, ignoreCase = true)
-                        Surface(
-                            color = AdaptiveElevatedColor,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    width = if (isLocalMatch) 1.5.dp else 1.dp,
-                                    color = if (isLocalMatch) SafeEmerald else AdaptiveBorderColor,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.Top
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = shelter.name,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = AdaptivePrimaryText,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            text = "${shelter.district} District • Elevation: ${shelter.elevationMeters}m ASL • ${shelter.distanceKmText}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = AdaptiveCyanAccent
-                                        )
-                                    }
-
-                                    if (isLocalMatch) {
-                                        Surface(
-                                            color = SafeEmerald.copy(alpha = 0.18f),
-                                            shape = RoundedCornerShape(6.dp)
-                                        ) {
-                                            Text(
-                                                text = "Nearest",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = SafeEmerald,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Facilities: ${shelter.facilities.joinToString(" • ")} (Capacity: ${shelter.capacityPeople} people)",
+                                    text = shelter.name + if (isLocalMatch) "  · Nearest" else "",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = AdaptivePrimaryText,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "${shelter.district} · ${shelter.elevationMeters} m above sea level · ${shelter.capacityPeople} people",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = AdaptiveSecondaryText
                                 )
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End
-                                ) {
-                                    OutlinedButton(
-                                        onClick = { onDialNumber(shelter.contactPhone) },
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Call,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(15.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Call Shelter (${shelter.contactPhone})")
-                                    }
-                                }
+                            }
+                            IconButton(onClick = { onDialNumber(shelter.contactPhone) }) {
+                                Icon(Icons.Default.Call, contentDescription = "Call ${shelter.name}", tint = AdaptiveCyanAccent)
                             }
                         }
                     }
                 }
-            }
-        }
-
-        // 4. TOP TILE 3: Household Flood Readiness Checklist (Click tile to expand & check items)
-        item {
-            ExpandableSectionTile(
-                title = "Household Flood Readiness Checklist",
-                subtitle = "$completedCount of ${checklist.size} safety actions completed (Tap to expand)",
-                icon = Icons.Default.CheckBox,
-                accentColor = SafeEmerald,
-                expanded = expandChecklistTile,
-                onToggleExpand = { expandChecklistTile = !expandChecklistTile },
-                testTag = "expandable_checklist_tile"
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                HorizontalDivider(color = AdaptiveBorderColor)
+                ExpandableRow(
+                    icon = Icons.Default.CheckBox,
+                    title = "Flood readiness checklist",
+                    subtitle = "$completedCount of ${checklist.size} done",
+                    expanded = expandChecklistTile,
+                    onToggle = { expandChecklistTile = !expandChecklistTile },
+                    testTag = "expandable_checklist_tile"
+                ) {
                     LinearProgressIndicator(
                         progress = { progress },
                         color = SafeEmerald,
                         trackColor = AdaptiveElevatedColor,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
                     )
-
                     checklist.forEach { item ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(AdaptiveElevatedColor)
+                                .clip(RoundedCornerShape(8.dp))
                                 .clickable { onToggleChecklistItem(item.id) }
-                                .padding(12.dp)
+                                .padding(vertical = 4.dp)
                                 .testTag("checklist_item_${item.id}"),
                             verticalAlignment = Alignment.Top,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -429,62 +255,31 @@ fun SafetyHubScreen(
                             Icon(
                                 imageVector = if (item.isChecked) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
                                 contentDescription = item.title,
-                                tint = if (item.isChecked) SafeEmerald else AdaptiveCyanAccent,
+                                tint = if (item.isChecked) SafeEmerald else AdaptiveSecondaryText,
                                 modifier = Modifier.size(22.dp)
                             )
                             Column {
-                                Text(
-                                    text = item.title,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = AdaptivePrimaryText,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = item.detail,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = AdaptiveSecondaryText
-                                )
+                                Text(item.title, style = MaterialTheme.typography.bodyMedium, color = AdaptivePrimaryText, fontWeight = FontWeight.SemiBold)
+                                Text(item.detail, style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
                             }
                         }
                     }
                 }
-            }
-        }
-
-        // 5. TOP TILE 4: Alert & Notification Interval Schedule (Click tile to expand & configure)
-        item {
-            ExpandableSectionTile(
-                title = "Weather Alert Notification Schedule",
-                subtitle = "Current schedule: ${selectedNotificationInterval.label} for $selectedNearestCity (Tap to expand)",
-                icon = Icons.Default.NotificationsActive,
-                accentColor = RadarCyan,
-                expanded = expandScheduleTile,
-                onToggleExpand = { expandScheduleTile = !expandScheduleTile },
-                testTag = "safety_notification_interval_card"
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "Select how frequently Lanka Weather Guard sends automated flood and weather alerts for $selectedNearestCity (${selectedRegion.name}):",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = AdaptiveSecondaryText
-                    )
-
+                HorizontalDivider(color = AdaptiveBorderColor)
+                ExpandableRow(
+                    icon = Icons.Default.NotificationsActive,
+                    title = "Alert notifications",
+                    subtitle = "${selectedNotificationInterval.label} for $selectedNearestCity",
+                    expanded = expandScheduleTile,
+                    onToggle = { expandScheduleTile = !expandScheduleTile },
+                    testTag = "safety_notification_interval_card"
+                ) {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(NotificationIntervalOption.entries.toList(), key = { it.name }) { option ->
-                            val isSelected = option == selectedNotificationInterval
                             FilterChip(
-                                selected = isSelected,
+                                selected = option == selectedNotificationInterval,
                                 onClick = { onSelectNotificationInterval(option) },
-                                label = {
-                                    Text(
-                                        text = option.shortChipLabel,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                    )
-                                },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RadarCyan.copy(alpha = 0.20f),
-                                    selectedLabelColor = AdaptiveCyanAccent
-                                ),
+                                label = { Text(option.shortChipLabel) },
                                 modifier = Modifier.testTag("safety_interval_chip_${option.id}")
                             )
                         }
@@ -493,498 +288,151 @@ fun SafetyHubScreen(
             }
         }
 
-        // 6. Featured Residing Area Official Government Expandable Tile (Starts collapsed, click to expand)
-        if (residingAnnouncement != null) {
-            item {
-                ResidingAreaOfficialGovernmentTile(
-                    announcement = residingAnnouncement,
-                    selectedNearestCity = selectedNearestCity,
-                    selectedDistrict = selectedRegion.name,
-                    onOpenOfficialUrl = { onOpenOfficialUrl(residingAnnouncement.officialUrl) }
-                )
-            }
-        }
-
-        // 7. Official Government Announcements Filter & "Expand All Tiles" Control Bar
+        // 3. Official updates, filtered by source
         item {
-            Card(
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = AdaptiveSurfaceColor),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, AdaptiveBorderColor, RoundedCornerShape(14.dp))
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Newspaper,
-                                contentDescription = null,
-                                tint = AdaptiveCyanAccent,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = "Official Government Tiles (${filteredGovNews.size})",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = AdaptivePrimaryText,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        Surface(
-                            color = RadarCyan.copy(alpha = 0.14f),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier
-                                .clickable { expandAllMessages = !expandAllMessages }
-                                .testTag("toggle_expand_all_gov_tiles")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = if (expandAllMessages) "Collapse All" else "Expand All",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = AdaptiveCyanAccent,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Icon(
-                                    imageVector = if (expandAllMessages) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                    contentDescription = null,
-                                    tint = AdaptiveCyanAccent,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(govCategories, key = { it }) { cat ->
-                            val selected = cat == selectedGovCategoryFilter
-                            FilterChip(
-                                selected = selected,
-                                onClick = { onSelectGovCategoryFilter(cat) },
-                                label = { Text(cat) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RadarCyan.copy(alpha = 0.18f),
-                                    selectedLabelColor = AdaptiveCyanAccent
-                                ),
-                                modifier = Modifier.testTag("gov_news_filter_${cat.lowercase().replace(" ", "_")}")
-                            )
-                        }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Official updates",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = AdaptivePrimaryText,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(govCategories, key = { it }) { cat ->
+                        FilterChip(
+                            selected = cat == selectedGovCategoryFilter,
+                            onClick = { onSelectGovCategoryFilter(cat) },
+                            label = { Text(govCategoryLabel(cat)) },
+                            modifier = Modifier.testTag("gov_news_filter_${cat.lowercase().replace(" ", "_")}")
+                        )
                     }
                 }
             }
         }
 
-        // 8. Expandable Government Message Tiles (Tap any tile to show the FULL message & directives)
-        itemsIndexed(filteredGovNews, key = { _, it -> it.id }) { idx, announcement ->
+        if (filteredGovNews.isEmpty()) {
+            item {
+                Text("No updates in this category.", style = MaterialTheme.typography.bodyMedium, color = AdaptiveSecondaryText)
+            }
+        }
+        items(filteredGovNews, key = { it.id }) { announcement ->
             ExpandableGovernmentAnnouncementTile(
-                indexNumber = idx + 1,
                 announcement = announcement,
-                forceExpand = expandAllMessages,
                 onOpenOfficialUrl = { onOpenOfficialUrl(announcement.officialUrl) }
             )
         }
     }
 }
 
-@Composable
-private fun ExpandableSectionTile(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    accentColor: Color,
-    expanded: Boolean,
-    onToggleExpand: () -> Unit,
-    testTag: String,
-    content: @Composable () -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = AdaptiveSurfaceColor),
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                width = if (expanded) 1.5.dp else 1.dp,
-                color = if (expanded) accentColor.copy(alpha = 0.65f) else AdaptiveBorderColor,
-                shape = RoundedCornerShape(14.dp)
-            )
-            .clickable { onToggleExpand() }
-            .testTag(testTag)
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(accentColor.copy(alpha = 0.14f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = accentColor,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Column {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = AdaptivePrimaryText,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = AdaptiveSecondaryText
-                        )
-                    }
-                }
-
-                Surface(
-                    color = accentColor.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = if (expanded) "Hide" else "View",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = accentColor,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Icon(
-                            imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = if (expanded) "Collapse" else "Expand",
-                            tint = accentColor,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-            }
-
-            AnimatedVisibility(visible = expanded) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HorizontalDivider(color = AdaptiveBorderColor)
-                    content()
-                }
-            }
-        }
-    }
+private fun govCategoryLabel(category: String): String = when (category) {
+    "All Official" -> "All"
+    "My Residing Area" -> "My area"
+    "DMC Flood Bulletin" -> "Floods (DMC)"
+    "Met Dept Warning" -> "Weather (Met Dept)"
+    "NBRO Landslide" -> "Landslides (NBRO)"
+    "Public Services & Schools" -> "Schools & services"
+    else -> category
 }
 
+/** A list row inside a card that reveals its content below when tapped. */
 @Composable
-private fun ResidingAreaOfficialGovernmentTile(
-    announcement: GovernmentAnnouncement,
-    selectedNearestCity: String,
-    selectedDistrict: String,
-    onOpenOfficialUrl: () -> Unit
+private fun ExpandableRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    testTag: String,
+    content: @Composable ColumnScope.() -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    val badgeColor = announcement.severity.badgeColor
-
-    Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = AdaptiveSurfaceColor),
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.5.dp, AdaptiveCyanAccent, RoundedCornerShape(14.dp))
-            .clickable { expanded = !expanded }
-            .testTag("safety_hub_residing_gov_card")
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+    Column(modifier = Modifier.fillMaxWidth().testTag(testTag)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { onToggle() }
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(RadarCyan.copy(alpha = 0.14f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AccountBalance,
-                            contentDescription = null,
-                            tint = AdaptiveCyanAccent,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Column {
-                        Text(
-                            text = "Residing Area Directive: $selectedNearestCity",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = AdaptiveCyanAccent,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "${announcement.issuingMinistryOrAgency} • Tap tile to expand",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = AdaptiveSecondaryText
-                        )
-                    }
-                }
-
-                Surface(
-                    color = badgeColor.copy(alpha = 0.16f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = if (expanded) "Hide" else selectedDistrict,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = badgeColor,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Icon(
-                            imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = null,
-                            tint = badgeColor,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
+            Icon(icon, contentDescription = null, tint = AdaptiveCyanAccent, modifier = Modifier.size(22.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge, color = AdaptivePrimaryText, fontWeight = FontWeight.SemiBold)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
             }
-
-            Text(
-                text = announcement.headline,
-                style = MaterialTheme.typography.titleMedium,
-                color = AdaptivePrimaryText,
-                fontWeight = FontWeight.Bold
+            Icon(
+                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (expanded) "Collapse" else "Expand",
+                tint = AdaptiveSecondaryText
             )
-
-            AnimatedVisibility(visible = expanded) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = announcement.summary,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = AdaptivePrimaryText
-                    )
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(AdaptiveElevatedColor)
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "Full Official Instructions & Safety Directives:",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = AdaptiveTealAccent,
-                            fontWeight = FontWeight.Bold
-                        )
-                        announcement.keyDirectives.forEach { directive ->
-                            Row(
-                                verticalAlignment = Alignment.Top,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = SafeEmerald,
-                                    modifier = Modifier
-                                        .padding(top = 2.dp)
-                                        .size(15.dp)
-                                )
-                                Text(
-                                    text = directive,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = AdaptivePrimaryText
-                                )
-                            }
-                        }
-                    }
-
-                    HorizontalDivider(color = AdaptiveBorderColor)
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Ref: ${announcement.referenceCode}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AdaptiveSecondaryText
-                        )
-
-                        Button(
-                            onClick = onOpenOfficialUrl,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = RadarCyan,
-                                contentColor = Color.White
-                            ),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            modifier = Modifier.testTag("residing_gov_official_link_btn")
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                                contentDescription = null,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = announcement.officialPortalName,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
+        }
+        AnimatedVisibility(visible = expanded) {
+            Column(
+                modifier = Modifier.padding(start = 34.dp, top = 4.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                content = content
+            )
         }
     }
 }
 
 @Composable
 private fun ExpandableGovernmentAnnouncementTile(
-    indexNumber: Int,
     announcement: GovernmentAnnouncement,
-    forceExpand: Boolean,
     onOpenOfficialUrl: () -> Unit
 ) {
-    var localExpanded by remember(announcement.id) { mutableStateOf(false) }
-    val isExpanded = forceExpand || localExpanded
-    val badgeColor = announcement.severity.badgeColor
+    var isExpanded by remember(announcement.id) { mutableStateOf(false) }
 
     Card(
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = AdaptiveSurfaceColor),
         modifier = Modifier
             .fillMaxWidth()
-            .border(
-                width = if (announcement.isResidingAreaMatch) 1.5.dp else 1.dp,
-                color = if (announcement.isResidingAreaMatch) badgeColor.copy(alpha = 0.7f) else AdaptiveBorderColor,
-                shape = RoundedCornerShape(14.dp)
-            )
-            .clickable { localExpanded = !localExpanded }
+            .border(1.dp, AdaptiveBorderColor, RoundedCornerShape(20.dp))
+            .clickable { isExpanded = !isExpanded }
             .testTag("gov_announcement_card_${announcement.id}")
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Surface(
-                        color = badgeColor.copy(alpha = 0.16f),
-                        shape = RoundedCornerShape(6.dp)
-                    ) {
-                        Text(
-                            text = "#$indexNumber • ${announcement.category}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = badgeColor,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-                    if (announcement.isResidingAreaMatch) {
-                        Surface(
-                            color = RadarCyan.copy(alpha = 0.16f),
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text(
-                                text = "Your Area",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = AdaptiveCyanAccent,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                            )
-                        }
-                    }
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(announcement.severity.badgeColor)
+                )
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = announcement.category + if (announcement.isResidingAreaMatch) " · Your area" else "",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = AdaptiveSecondaryText
+                    )
+                    Text(
+                        text = announcement.headline,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = AdaptivePrimaryText,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = if (isExpanded) Int.MAX_VALUE else 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${announcement.issuingMinistryOrAgency.substringBefore(" •")} · ${announcement.publishedTimeText}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AdaptiveSecondaryText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-
-                Surface(
-                    color = AdaptiveElevatedColor,
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = if (isExpanded) "Hide" else "View",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AdaptiveCyanAccent,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Icon(
-                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = if (isExpanded) "Collapse" else "Expand",
-                            tint = AdaptiveCyanAccent,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    tint = AdaptiveSecondaryText
+                )
             }
-
-            Text(
-                text = announcement.headline,
-                style = MaterialTheme.typography.titleMedium,
-                color = AdaptivePrimaryText,
-                fontWeight = FontWeight.Bold
-            )
-
-            Text(
-                text = "${announcement.issuingMinistryOrAgency} • ${announcement.publishedTimeText}",
-                style = MaterialTheme.typography.bodySmall,
-                color = AdaptiveCyanAccent
-            )
 
             AnimatedVisibility(visible = isExpanded) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1040,17 +488,9 @@ private fun ExpandableGovernmentAnnouncementTile(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Tap tile to collapse ▲",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = AdaptiveCyanAccent,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.weight(1f)
-                        )
-
                         OutlinedButton(
                             onClick = onOpenOfficialUrl,
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp),
