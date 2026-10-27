@@ -9,6 +9,7 @@ import com.example.model.HourlyForecastItem
 import com.example.model.RadarFrame
 import com.example.model.RadarStormCell
 import com.example.model.RegionalWeatherReport
+import com.example.model.FEET_TO_METRES
 import com.example.model.RiverGaugeStation
 import com.example.model.SafetyChecklistItem
 import com.example.model.SriLankaRegion
@@ -497,7 +498,8 @@ class SriLankaWeatherRepository {
             dischargeM3s = 980.0,
             lastUpdatedText = "Live • RiverWatch.LK / Irrigation Dept",
             hourlyLevelsM = listOf(1.35, 1.48, 1.59, 1.71, 1.82, 1.92),
-            downstreamTowns = listOf("Peliyagoda", "Kelaniya", "Wellampitiya", "Kolonnawa", "Mattakkuliya")
+            downstreamTowns = listOf("Peliyagoda", "Kelaniya", "Wellampitiya", "Kolonnawa", "Mattakkuliya"),
+            sourceUnit = "ft"
         ),
         RiverGaugeStation(
             id = "kelani_hanwella",
@@ -1467,6 +1469,32 @@ class SriLankaWeatherRepository {
         "attanagalu_dunamale" to "Dunamale"
     )
 
+    // Gauges the Irrigation Dept publishes in feet (hydrostations "Unit" column, checked Oct 2026).
+    // Used until the live unit list loads, and if it can't be reached.
+    private val fallbackFeetGauges = setOf("nagalagam street")
+
+    @Volatile
+    private var feetGauges: Set<String>? = null
+
+    /** Lower-cased gauge names reported in feet; fetched once per app run, falls back to the known list. */
+    private suspend fun feetGaugeNames(): Set<String> {
+        feetGauges?.let { return it }
+        return try {
+            WeatherNetworkClient.irrigationGaugeService.queryStationUnits().features
+                ?.mapNotNull { it.attributes }
+                ?.filter { it.unit?.trim()?.lowercase(Locale.US) in setOf("ft", "feet") }
+                ?.mapNotNull { it.station?.trim()?.lowercase(Locale.US) }
+                ?.toSet()
+                ?.takeIf { it.isNotEmpty() }
+                ?.also { feetGauges = it }
+                ?: fallbackFeetGauges
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            fallbackFeetGauges
+        }
+    }
+
     // Last successful live sync, reused if a later refresh fails so gauges don't snap back to reference values
     @Volatile
     private var lastLiveStations: List<RiverGaugeStation>? = null
@@ -1511,6 +1539,7 @@ class SriLankaWeatherRepository {
             } catch (_: Exception) {
                 null
             }
+            val feetGauges = feetGaugeNames()
 
             if (readingsByGauge.isNullOrEmpty()) {
                 lastLiveStations?.let { cached ->
@@ -1531,14 +1560,18 @@ class SriLankaWeatherRepository {
                         lastUpdatedText = "Reference level • live gauge unavailable ($syncedTime)"
                     )
                 }
-                val levels = history.mapNotNull { it.waterLevelM }
+                // The feed sends raw numbers in the gauge's own unit; everything in the app is metres
+                val inFeet = gaugeName in feetGauges
+                val toM = if (inFeet) FEET_TO_METRES else 1.0
+                val levels = history.mapNotNull { it.waterLevelM?.times(toM) }
                 val readingTime = slstFormat("HH:mm").format(Date(latest.creationDateMillis!!))
                 station.copy(
                     currentLevelM = levels.last(),
                     previousLevelM = levels.getOrElse(levels.size - 2) { levels.last() },
-                    alertLevelM = latest.alertLevelM?.takeIf { it > 0.0 } ?: station.alertLevelM,
-                    minorFloodLevelM = latest.minorFloodLevelM?.takeIf { it > 0.0 } ?: station.minorFloodLevelM,
-                    majorFloodLevelM = latest.majorFloodLevelM?.takeIf { it > 0.0 } ?: station.majorFloodLevelM,
+                    alertLevelM = latest.alertLevelM?.takeIf { it > 0.0 }?.times(toM) ?: station.alertLevelM,
+                    minorFloodLevelM = latest.minorFloodLevelM?.takeIf { it > 0.0 }?.times(toM) ?: station.minorFloodLevelM,
+                    majorFloodLevelM = latest.majorFloodLevelM?.takeIf { it > 0.0 }?.times(toM) ?: station.majorFloodLevelM,
+                    sourceUnit = if (inFeet) "ft" else "m",
                     catchmentRainMm24h = history.sumOf { it.rainFallMm ?: 0.0 },
                     dischargeM3s = discharge,
                     hourlyLevelsM = levels.takeLast(6),

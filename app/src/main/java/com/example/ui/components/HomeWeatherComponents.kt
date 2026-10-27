@@ -1,11 +1,27 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.model.AlertSeverity
+import com.example.model.WeatherAlert
+import com.example.ui.theme.SafeEmerald
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,9 +41,7 @@ import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Dehaze
-import androidx.compose.material.icons.filled.EditLocationAlt
 import androidx.compose.material.icons.filled.Grain
-import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Thunderstorm
 import androidx.compose.material.icons.filled.Umbrella
@@ -186,6 +200,18 @@ fun CurrentConditionsHero(
             )
         }
 
+        if (hasLiveData) {
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.2f))
+            Spacer(Modifier.height(10.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                HeroStat(Icons.Filled.Umbrella, "${report.rain24hMm.roundToInt()} mm", "Rain today", Modifier.weight(1f))
+                HeroStat(Icons.Filled.Grain, today?.let { "${it.maxRainProb}%" } ?: "--", "Rain chance", Modifier.weight(1f))
+                HeroStat(Icons.Filled.Air, "${report.windSpeedKmh.roundToInt()} km/h", "Wind", Modifier.weight(1f))
+                HeroStat(Icons.Filled.WaterDrop, "${report.humidityPercent}%", "Humidity", Modifier.weight(1f))
+            }
+        }
+
         Spacer(Modifier.height(6.dp))
         Text(
             text = when {
@@ -200,76 +226,13 @@ fun CurrentConditionsHero(
     }
 }
 
-/** Four simple stat tiles: rain today, chance of rain, wind and humidity. */
 @Composable
-fun QuickStatsRow(report: RegionalWeatherReport, modifier: Modifier = Modifier) {
-    val live = report.isLiveApiData
-    val today = report.daily.firstOrNull()
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        StatTile(
-            icon = Icons.Filled.Umbrella,
-            label = "Rain today",
-            value = if (live) "${report.rain24hMm.roundToInt()} mm" else "--",
-            highlight = live && report.rain24hMm >= 50.0,
-            modifier = Modifier.weight(1f)
-        )
-        StatTile(
-            icon = Icons.Filled.Grain,
-            label = "Rain chance",
-            value = if (live && today != null) "${today.maxRainProb}%" else "--",
-            modifier = Modifier.weight(1f)
-        )
-        StatTile(
-            icon = Icons.Filled.Air,
-            label = "Wind",
-            value = if (live) "${report.windSpeedKmh.roundToInt()} km/h" else "--",
-            highlight = live && report.windGustKmh >= 50.0,
-            modifier = Modifier.weight(1f)
-        )
-        StatTile(
-            icon = Icons.Filled.WaterDrop,
-            label = "Humidity",
-            value = if (live) "${report.humidityPercent}%" else "--",
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-private fun StatTile(
-    icon: ImageVector,
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    highlight: Boolean = false
-) {
-    val accent = if (highlight) AlertRed else AdaptiveCyanAccent
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(AdaptiveSurfaceColor)
-            .border(1.dp, if (highlight) AlertRed.copy(alpha = 0.5f) else AdaptiveBorderColor, RoundedCornerShape(16.dp))
-            .padding(horizontal = 8.dp, vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleSmall,
-            color = if (highlight) AlertRed else AdaptivePrimaryText,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = AdaptiveSecondaryText,
-            maxLines = 1
-        )
+private fun HeroStat(icon: ImageVector, value: String, label: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(18.dp))
+        Spacer(Modifier.height(2.dp))
+        Text(value, style = MaterialTheme.typography.titleSmall, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.75f), maxLines = 1)
     }
 }
 
@@ -368,6 +331,9 @@ fun NearestRiverCard(
                     )
                     Text(station.trend.label, style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
                 }
+                station.publishedLevelText?.let {
+                    Text("Gauge reads $it", style = MaterialTheme.typography.labelSmall, color = AdaptiveSecondaryText)
+                }
             }
             StatusPill(text = status.friendlyLabel(), color = status.color)
         }
@@ -401,49 +367,119 @@ fun NearestRiverCard(
     }
 }
 
-/** Three large, clearly labelled actions. */
+/**
+ * All active alerts in one card: the most severe few are listed as simple rows (tap to read more),
+ * the rest sit behind "Show all".
+ */
 @Composable
-fun HomeQuickActions(
-    onChangeArea: () -> Unit,
+fun AlertsSummaryCard(
+    alerts: List<WeatherAlert>,
     onNotifyMe: () -> Unit,
-    onCallEmergency: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        QuickActionButton(Icons.Filled.EditLocationAlt, "Change area", AdaptiveCyanAccent, onChangeArea, Modifier.weight(1f))
-        QuickActionButton(Icons.Filled.NotificationsActive, "Alert me now", AdaptiveCyanAccent, onNotifyMe, Modifier.weight(1f))
-        QuickActionButton(Icons.Filled.Phone, "Call 117", AlertRed, onCallEmergency, Modifier.weight(1f))
+    val sorted = remember(alerts) {
+        alerts.sortedWith(compareByDescending<WeatherAlert> { it.isUserDistrictMatch }.thenByDescending { it.severity.priority })
+    }
+    var showAll by remember { mutableStateOf(false) }
+    var openId by remember { mutableStateOf<String?>(null) }
+    val visible = if (showAll) sorted else sorted.take(3)
+
+    SectionCard(
+        title = if (alerts.isEmpty()) "Alerts" else "Alerts (${alerts.size})",
+        actionLabel = "Notify me",
+        onAction = onNotifyMe,
+        modifier = modifier.testTag("home_alerts_card")
+    ) {
+        if (sorted.isEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = SafeEmerald, modifier = Modifier.size(20.dp))
+                Text("No weather alerts for Sri Lanka right now.", style = MaterialTheme.typography.bodyMedium, color = AdaptivePrimaryText)
+            }
+            return@SectionCard
+        }
+        visible.forEachIndexed { idx, alert ->
+            if (idx > 0) HorizontalDivider(color = AdaptiveBorderColor)
+            val open = openId == alert.id
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { openId = if (open) null else alert.id }
+                    .padding(vertical = 4.dp)
+                    .testTag("home_alert_${alert.id}"),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(alert.severity.badgeColor)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = alert.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = AdaptivePrimaryText,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = if (open) Int.MAX_VALUE else 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "${alert.severity.shortLabel()} · ${alert.district}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AdaptiveSecondaryText
+                        )
+                    }
+                    Icon(
+                        imageVector = if (open) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (open) "Hide details" else "Show details",
+                        tint = AdaptiveSecondaryText
+                    )
+                }
+                if (open) {
+                    Text(alert.summary, style = MaterialTheme.typography.bodySmall, color = AdaptivePrimaryText)
+                    alert.recommendedActions.take(3).forEach { action ->
+                        Text("• $action", style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
+                    }
+                    Text(
+                        text = "${alert.issuingAgency} · ${alert.issuedTimeText}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AdaptiveSecondaryText
+                    )
+                }
+            }
+        }
+        if (sorted.size > 3) {
+            TextButton(onClick = { showAll = !showAll }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                Text(if (showAll) "Show less" else "Show all ${sorted.size} alerts")
+            }
+        }
     }
 }
 
+private fun AlertSeverity.shortLabel(): String = when (this) {
+    AlertSeverity.CRITICAL_RED -> "Severe"
+    AlertSeverity.MAJOR_AMBER -> "Warning"
+    AlertSeverity.ADVISORY_YELLOW -> "Advisory"
+    AlertSeverity.SAFE_GREEN -> "Info"
+}
+
+/** Single, unmissable emergency action at the bottom of Home. */
 @Composable
-private fun QuickActionButton(
-    icon: ImageVector,
-    label: String,
-    tint: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
+fun EmergencyCallButton(onCallEmergency: () -> Unit, modifier: Modifier = Modifier) {
+    OutlinedButton(
+        onClick = onCallEmergency,
+        border = BorderStroke(1.dp, AlertRed.copy(alpha = 0.6f)),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = AlertRed),
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(AdaptiveSurfaceColor)
-            .border(1.dp, AdaptiveBorderColor, RoundedCornerShape(16.dp))
-            .clickable { onClick() }
-            .padding(vertical = 14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .fillMaxWidth()
+            .height(48.dp)
+            .testTag("home_call_117")
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(tint.copy(alpha = 0.14f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
-        }
-        Text(label, style = MaterialTheme.typography.labelMedium, color = AdaptivePrimaryText, fontWeight = FontWeight.SemiBold)
+        Icon(Icons.Filled.Phone, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text("Emergency – call DMC 117", fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -471,7 +507,7 @@ fun SectionCard(
     modifier: Modifier = Modifier,
     actionLabel: String? = null,
     onAction: () -> Unit = {},
-    content: @Composable () -> Unit
+    content: @Composable ColumnScope.() -> Unit
 ) {
     Column(
         modifier = modifier
