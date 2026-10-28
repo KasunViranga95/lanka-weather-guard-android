@@ -2,7 +2,6 @@ package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -224,9 +223,8 @@ private fun RiverGroupCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(AdaptiveSurfaceColor)
-            .border(1.dp, AdaptiveBorderColor, RoundedCornerShape(20.dp))
             .testTag("river_group_${riverName.lowercase(Locale.US).replace(' ', '_')}")
     ) {
         Text(

@@ -27,7 +27,10 @@ data class OpenMeteoCurrent(
     @Json(name = "weather_code") val weatherCode: Int?,
     @Json(name = "surface_pressure") val surfacePressure: Double?,
     @Json(name = "wind_speed_10m") val windSpeed10m: Double?,
-    @Json(name = "wind_gusts_10m") val windGusts10m: Double?
+    @Json(name = "wind_gusts_10m") val windGusts10m: Double?,
+    @Json(name = "wind_direction_10m") val windDirection10m: Double? = null,
+    @Json(name = "uv_index") val uvIndex: Double? = null,
+    @Json(name = "is_day") val isDay: Int? = null
 )
 
 data class OpenMeteoHourly(
@@ -36,7 +39,8 @@ data class OpenMeteoHourly(
     @Json(name = "precipitation_probability") val precipitationProbability: List<Int>?,
     @Json(name = "precipitation") val precipitation: List<Double>?,
     @Json(name = "wind_gusts_10m") val windGusts10m: List<Double>?,
-    @Json(name = "weather_code") val weatherCode: List<Int>?
+    @Json(name = "weather_code") val weatherCode: List<Int>?,
+    @Json(name = "is_day") val isDay: List<Int>? = null
 )
 
 data class OpenMeteoDaily(
@@ -46,7 +50,10 @@ data class OpenMeteoDaily(
     @Json(name = "temperature_2m_min") val temperature2mMin: List<Double>?,
     @Json(name = "precipitation_sum") val precipitationSum: List<Double>?,
     @Json(name = "precipitation_probability_max") val precipitationProbabilityMax: List<Int>?,
-    @Json(name = "wind_gusts_10m_max") val windGusts10mMax: List<Double>?
+    @Json(name = "wind_gusts_10m_max") val windGusts10mMax: List<Double>?,
+    @Json(name = "sunrise") val sunrise: List<String>? = null,
+    @Json(name = "sunset") val sunset: List<String>? = null,
+    @Json(name = "uv_index_max") val uvIndexMax: List<Double>? = null
 )
 
 data class OpenMeteoFloodResponse(
@@ -120,9 +127,9 @@ interface OpenMeteoService {
     suspend fun getForecast(
         @Query("latitude") latitude: Double,
         @Query("longitude") longitude: Double,
-        @Query("current") current: String = "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,wind_gusts_10m",
-        @Query("hourly") hourly: String = "temperature_2m,precipitation_probability,precipitation,wind_gusts_10m,weather_code",
-        @Query("daily") daily: String = "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_gusts_10m_max",
+        @Query("current") current: String = "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index,is_day",
+        @Query("hourly") hourly: String = "temperature_2m,precipitation_probability,precipitation,wind_gusts_10m,weather_code,is_day",
+        @Query("daily") daily: String = "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_gusts_10m_max,sunrise,sunset,uv_index_max",
         @Query("timezone") timezone: String = "Asia/Colombo",
         @Query("forecast_days") forecastDays: Int = 7,
         // Hourly series starts at the current hour rather than midnight
