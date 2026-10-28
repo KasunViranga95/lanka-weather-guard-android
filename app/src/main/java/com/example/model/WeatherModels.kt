@@ -10,10 +10,9 @@ import java.util.Locale
 import kotlin.math.max
 
 enum class AppTab(val route: String, val label: String) {
-    ALERTS("alerts", "Home"),
+    ALERTS("alerts", "Weather"),
     RADAR("radar", "Map"),
     RIVERS("rivers", "Rivers"),
-    FORECAST("forecast", "Forecast"),
     SAFETY("safety", "Safety")
 }
 
@@ -688,7 +687,8 @@ data class HourlyForecastItem(
     val rainMm: Double,
     val rainProbability: Int,
     val windGustKmh: Double,
-    val weatherCode: Int
+    val weatherCode: Int,
+    val isDay: Boolean = true
 )
 
 data class DailyForecastItem(
@@ -700,7 +700,9 @@ data class DailyForecastItem(
     val maxRainProb: Int,
     val maxWindKmh: Double,
     val weatherSummary: String,
-    val riskLevel: AlertSeverity
+    val riskLevel: AlertSeverity,
+    // WMO weather code for the day (drives the condition icon)
+    val weatherCode: Int = 3
 )
 
 data class ActivitySafetyAssessment(
@@ -731,7 +733,13 @@ data class RegionalWeatherReport(
     val isLiveApiData: Boolean,
     val syncedTimestamp: String,
     // WMO weather code for current conditions (drives the condition icon)
-    val weatherCode: Int = 3
+    val weatherCode: Int = 3,
+    val isDay: Boolean = true,
+    val uvIndex: Double? = null,
+    val windDirectionDeg: Int? = null,
+    // Local times as "HH:mm"
+    val sunrise: String? = null,
+    val sunset: String? = null
 )
 
 data class RadarFrame(

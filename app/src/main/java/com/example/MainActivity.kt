@@ -33,26 +33,26 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CompassCalibration
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Flood
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Water
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material.icons.outlined.Water
+import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.Radar
-import androidx.compose.material.icons.outlined.CompassCalibration
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Flood
 import androidx.compose.material.icons.outlined.HealthAndSafety
 import androidx.compose.material.icons.outlined.NotificationsActive
-import androidx.compose.material.icons.outlined.Radar
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -86,7 +86,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.UserPreferencesStore
-import com.example.model.AlertSeverity
 import com.example.model.AppTab
 import com.example.model.DispatchedNotificationRecord
 import com.example.model.FloodStatus
@@ -94,11 +93,9 @@ import com.example.ui.components.GeminiClarificationDialog
 import com.example.ui.components.ResidingLocationDialog
 import com.example.ui.screens.AlertsDashboardScreen
 import com.example.ui.screens.LiveRadarScreen
-import com.example.ui.screens.RegionalForecastScreen
 import com.example.ui.screens.RiverWaterLevelsScreen
 import com.example.ui.screens.SafetyHubScreen
 import com.example.ui.theme.AdaptiveAppBackground
-import com.example.ui.theme.AdaptiveBorderColor
 import com.example.ui.theme.AdaptiveCyanAccent
 import com.example.ui.theme.AdaptiveElevatedColor
 import com.example.ui.theme.AdaptivePrimaryText
@@ -314,7 +311,7 @@ fun LankaWeatherGuardApp(
             }
         }
 
-        val criticalAlertCount = uiState.alerts.count { it.severity == AlertSeverity.CRITICAL_RED }
+        var showOverflowMenu by remember { mutableStateOf(false) }
         val floodStationCount = uiState.riverStations.count {
             it.floodStatus == FloodStatus.MAJOR_FLOOD || it.floodStatus == FloodStatus.MINOR_FLOOD
         }
@@ -354,15 +351,15 @@ fun LankaWeatherGuardApp(
                             Icon(
                                 imageVector = Icons.Default.LocationOn,
                                 contentDescription = null,
-                                tint = AdaptiveCyanAccent,
+                                tint = AdaptivePrimaryText,
                                 modifier = Modifier.size(22.dp)
                             )
                             Column(modifier = Modifier.weight(1f, fill = false)) {
                                 Text(
                                     text = uiState.selectedNearestCity,
-                                    style = MaterialTheme.typography.titleMedium,
+                                    style = MaterialTheme.typography.titleLarge,
                                     color = AdaptivePrimaryText,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.Normal,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -385,46 +382,67 @@ fun LankaWeatherGuardApp(
                             )
                         }
 
-                        IconButton(
-                            onClick = { weatherViewModel.openGeminiClarifier() },
-                            modifier = Modifier.testTag("top_bar_ask_gemini_button")
-                        ) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = "Ask the AI helper", tint = AdaptiveCyanAccent)
-                        }
-                        IconButton(
-                            onClick = { weatherViewModel.setDarkTheme(!uiState.isDarkTheme) },
-                            modifier = Modifier.testTag("theme_mode_toggle_button")
-                        ) {
-                            Icon(
-                                imageVector = if (uiState.isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                                contentDescription = if (uiState.isDarkTheme) "Switch to light mode" else "Switch to dark mode",
-                                tint = AdaptiveSecondaryText
-                            )
-                        }
-                        IconButton(
-                            onClick = { weatherViewModel.refreshAllTelemetry() },
-                            enabled = !uiState.isLoading,
-                            modifier = Modifier.testTag("top_bar_refresh_button")
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Refresh now", tint = AdaptiveSecondaryText)
+                        Box {
+                            IconButton(
+                                onClick = { showOverflowMenu = true },
+                                modifier = Modifier.testTag("top_bar_more_button")
+                            ) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "More options", tint = AdaptiveSecondaryText)
+                            }
+                            DropdownMenu(
+                                expanded = showOverflowMenu,
+                                onDismissRequest = { showOverflowMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Ask the AI helper") },
+                                    leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        weatherViewModel.openGeminiClarifier()
+                                    },
+                                    modifier = Modifier.testTag("top_bar_ask_gemini_button")
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Refresh now") },
+                                    leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                                    enabled = !uiState.isLoading,
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        weatherViewModel.refreshAllTelemetry()
+                                    },
+                                    modifier = Modifier.testTag("top_bar_refresh_button")
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (uiState.isDarkTheme) "Light theme" else "Dark theme") },
+                                    leadingIcon = {
+                                        Icon(
+                                            if (uiState.isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        weatherViewModel.setDarkTheme(!uiState.isDarkTheme)
+                                    },
+                                    modifier = Modifier.testTag("theme_mode_toggle_button")
+                                )
+                            }
                         }
                     }
 
-                    if (uiState.isLoading) {
+                    if (uiState.isLoading && uiState.currentTab != AppTab.ALERTS) {
                         LinearProgressIndicator(
                             color = RadarCyan,
                             trackColor = Color.Transparent,
                             modifier = Modifier.fillMaxWidth()
                         )
-                    } else {
-                        HorizontalDivider(color = AdaptiveBorderColor)
                     }
                 }
             },
             bottomBar = {
                 NavigationBar(
                     containerColor = AdaptiveSurfaceColor,
-                    tonalElevation = 4.dp
+                    tonalElevation = 0.dp
                 ) {
                     AppTab.entries.forEach { tab ->
                         val selected = uiState.currentTab == tab
@@ -434,11 +452,7 @@ fun LankaWeatherGuardApp(
                             icon = {
                                 BadgedBox(
                                     badge = {
-                                        if (tab == AppTab.ALERTS && criticalAlertCount > 0) {
-                                            Badge(containerColor = AlertRed) {
-                                                Text(criticalAlertCount.toString(), color = Color.White)
-                                            }
-                                        } else if (tab == AppTab.RIVERS && floodStationCount > 0) {
+                                        if (tab == AppTab.RIVERS && floodStationCount > 0) {
                                             Badge(containerColor = AlertRed) {
                                                 Text(floodStationCount.toString(), color = Color.White)
                                             }
@@ -447,10 +461,9 @@ fun LankaWeatherGuardApp(
                                 ) {
                                     Icon(
                                         imageVector = when (tab) {
-                                            AppTab.ALERTS -> if (selected) Icons.Filled.Home else Icons.Outlined.Home
-                                            AppTab.RADAR -> if (selected) Icons.Filled.Radar else Icons.Outlined.Radar
-                                            AppTab.RIVERS -> if (selected) Icons.Filled.Flood else Icons.Outlined.Flood
-                                            AppTab.FORECAST -> if (selected) Icons.Filled.CompassCalibration else Icons.Outlined.CompassCalibration
+                                            AppTab.ALERTS -> if (selected) Icons.Filled.WbSunny else Icons.Outlined.WbSunny
+                                            AppTab.RADAR -> if (selected) Icons.Filled.Map else Icons.Outlined.Map
+                                            AppTab.RIVERS -> if (selected) Icons.Filled.Water else Icons.Outlined.Water
                                             AppTab.SAFETY -> if (selected) Icons.Filled.HealthAndSafety else Icons.Outlined.HealthAndSafety
                                         },
                                         contentDescription = tab.label
@@ -464,9 +477,9 @@ fun LankaWeatherGuardApp(
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = AdaptiveCyanAccent,
-                                selectedTextColor = AdaptiveCyanAccent,
-                                indicatorColor = RadarCyan.copy(alpha = 0.14f),
+                                selectedIconColor = AdaptivePrimaryText,
+                                selectedTextColor = AdaptivePrimaryText,
+                                indicatorColor = AdaptiveCyanAccent.copy(alpha = 0.22f),
                                 unselectedIconColor = AdaptiveSecondaryText,
                                 unselectedTextColor = AdaptiveSecondaryText
                             ),
@@ -483,16 +496,13 @@ fun LankaWeatherGuardApp(
             ) {
                 when (uiState.currentTab) {
                     AppTab.ALERTS -> AlertsDashboardScreen(
-                        selectedRegion = uiState.selectedRegion,
                         selectedNearestCity = uiState.selectedNearestCity,
                         alerts = uiState.alerts,
                         regionalReport = uiState.regionalReport,
                         riverStations = uiState.riverStations,
                         primaryStation = primaryStationForArea,
                         isSyncing = uiState.isLoading,
-                        onOpenResidingLocationPicker = {
-                            weatherViewModel.openResidingLocationDialog(permissionDenied = false)
-                        },
+                        onRefresh = { weatherViewModel.refreshAllTelemetry() },
                         onSendAreaNotificationNow = sendNotificationForCurrentAreaAction,
                         onOpenRiversTab = { weatherViewModel.selectTab(AppTab.RIVERS) },
                         onDialEmergencyDmc = { dialEmergencyNumber(context, "117") }
@@ -540,15 +550,6 @@ fun LankaWeatherGuardApp(
                         onBasinFilterSelected = { weatherViewModel.setBasinFilter(it) },
                         onSearchQueryChanged = { weatherViewModel.setRiverSearchQuery(it) },
                         onHydrographTimeRangeSelected = { weatherViewModel.setHydrographTimeRange(it) }
-                    )
-
-                    AppTab.FORECAST -> RegionalForecastScreen(
-                        regions = uiState.regions,
-                        selectedRegion = uiState.selectedRegion,
-                        report = uiState.regionalReport,
-                        onRegionSelected = { region ->
-                            weatherViewModel.selectRegion(region)
-                        }
                     )
 
                     AppTab.SAFETY -> SafetyHubScreen(

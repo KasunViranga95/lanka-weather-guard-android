@@ -11,8 +11,8 @@ import androidx.compose.ui.graphics.Color
 val LocalIsDarkTheme = staticCompositionLocalOf { false }
 
 private val DarkWeatherColorScheme = darkColorScheme(
-    primary = Color(0xFF4599FF),
-    onPrimary = Color.White,
+    primary = Color(0xFF8AB4F8),
+    onPrimary = Color(0xFF062E6F),
     primaryContainer = NavyElevated,
     onPrimaryContainer = CloudWhite,
     secondary = Color(0xFF2ABBA7),
@@ -33,9 +33,9 @@ private val DarkWeatherColorScheme = darkColorScheme(
 )
 
 private val LightWeatherColorScheme = lightColorScheme(
-    primary = Color(0xFF1877F2),
+    primary = Color(0xFF1A73E8),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFE7F3FF),
+    primaryContainer = Color(0xFFD3E3FD),
     onPrimaryContainer = Color(0xFF050505),
     secondary = Color(0xFF00796B),
     onSecondary = Color.White,

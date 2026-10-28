@@ -1343,7 +1343,8 @@ class SriLankaWeatherRepository {
                     val probs = hourly?.precipitationProbability.orEmpty()
                     val gusts = hourly?.windGusts10m.orEmpty()
                     val codes = hourly?.weatherCode.orEmpty()
-                    for (i in forecastNowIdx until minOf(forecastNowIdx + 12, times.size)) {
+                    val dayFlags = hourly?.isDay.orEmpty()
+                    for (i in forecastNowIdx until minOf(forecastNowIdx + 24, times.size)) {
                         val rawTime = times.getOrNull(i) ?: ""
                         val ensembleIdx = ensembleHourly.timeIndexOf(rawTime)
                         val shortTime = rawTime.substringAfter("T", rawTime).ifEmpty { "${(i * 2) % 24}:00" }
@@ -1355,7 +1356,8 @@ class SriLankaWeatherRepository {
                                 rainMm = rains.getOrNull(i) ?: 0.0,
                                 rainProbability = probs.getOrNull(i) ?: 65,
                                 windGustKmh = gusts.getOrNull(i) ?: windGust,
-                                weatherCode = codes.getOrNull(i) ?: weatherCode
+                                weatherCode = codes.getOrNull(i) ?: weatherCode,
+                                isDay = (dayFlags.getOrNull(i) ?: 1) == 1
                             )
                         )
                     }
@@ -1370,7 +1372,11 @@ class SriLankaWeatherRepository {
                     val maxProbs = daily?.precipitationProbabilityMax.orEmpty()
                     val maxWinds = daily?.windGusts10mMax.orEmpty()
                     val codes = daily?.weatherCode.orEmpty()
-                    val dayNames = listOf("Today", "Tomorrow", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7")
+                    val weekday = slstFormat("EEE")
+                    val isoDate = slstFormat("yyyy-MM-dd")
+                    val dayNames = dates.mapIndexed { i, d ->
+                        if (i == 0) "Today" else runCatching { weekday.format(isoDate.parse(d)!!) }.getOrElse { "Day ${i + 1}" }
+                    }
                     for (i in 0 until minOf(7, dates.size)) {
                         val rainTotal = rainSums.getOrNull(i) ?: 18.0
                         val gustMax = maxWinds.getOrNull(i) ?: 42.0
@@ -1392,7 +1398,8 @@ class SriLankaWeatherRepository {
                                 maxRainProb = maxProbs.getOrNull(i) ?: 70,
                                 maxWindKmh = gustMax,
                                 weatherSummary = describeWmoCode(codes.getOrNull(i) ?: 61, rainTotal),
-                                riskLevel = risk
+                                riskLevel = risk,
+                                weatherCode = codes.getOrNull(i) ?: 3
                             )
                         )
                     }
@@ -1412,6 +1419,11 @@ class SriLankaWeatherRepository {
                     windGustKmh = windGust,
                     weatherDescription = describeWmoCode(weatherCode, rain24h),
                     weatherCode = weatherCode,
+                    isDay = (current.isDay ?: 1) == 1,
+                    uvIndex = current.uvIndex,
+                    windDirectionDeg = current.windDirection10m?.roundToInt(),
+                    sunrise = daily?.sunrise?.firstOrNull()?.substringAfter("T"),
+                    sunset = daily?.sunset?.firstOrNull()?.substringAfter("T"),
                     pressureHpa = pressure,
                     hourly = hourlyItems,
                     daily = dailyItems,

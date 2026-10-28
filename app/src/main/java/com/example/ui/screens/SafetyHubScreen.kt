@@ -2,7 +2,6 @@ package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -385,11 +384,10 @@ private fun ExpandableGovernmentAnnouncementTile(
     var isExpanded by remember(announcement.id) { mutableStateOf(false) }
 
     Card(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = AdaptiveSurfaceColor),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, AdaptiveBorderColor, RoundedCornerShape(20.dp))
             .clickable { isExpanded = !isExpanded }
             .testTag("gov_announcement_card_${announcement.id}")
     ) {
