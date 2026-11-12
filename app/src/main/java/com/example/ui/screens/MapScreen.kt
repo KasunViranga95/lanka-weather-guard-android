@@ -50,6 +50,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.doOnLayout
 import com.example.R
 import com.example.model.CityWeatherSnapshot
 import com.example.model.SriLankaRegion
@@ -163,7 +164,13 @@ private fun WindyMap(url: String, reloadKey: Int, modifier: Modifier = Modifier)
             val key = url to reloadKey
             if (loadedKey != key) {
                 loadedKey = key
-                webView.loadUrl(url)
+                // Windy's map gets no height when it is the top-level page in a WebView (it stays grey),
+                // so it is shown inside a full-size frame, loaded once the view has its real size.
+                webView.doOnLayout { v ->
+                    if (v.width > 0 && v.height > 0) {
+                        (v as WebView).loadDataWithBaseURL("https://embed.windy.com/", windyFrame(url), "text/html", "UTF-8", null)
+                    }
+                }
             }
         }
     )
@@ -224,3 +231,13 @@ private fun TownsList(towns: List<CityWeatherSnapshot>) {
         }
     }
 }
+
+/** A page that holds the Windy embed in a frame filling the whole view. */
+private fun windyFrame(url: String): String = """
+    <!DOCTYPE html>
+    <html><head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <style>html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1d2026; }
+    iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; }</style>
+    </head><body><iframe src="$url" allowfullscreen></iframe></body></html>
+""".trimIndent()
