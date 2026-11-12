@@ -2,6 +2,7 @@ package com.example
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -16,7 +17,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,30 +29,32 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.HealthAndSafety
-import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Water
 import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.outlined.HealthAndSafety
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Water
 import androidx.compose.material.icons.outlined.WbSunny
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.outlined.HealthAndSafety
-import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -61,62 +63,65 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.data.AlertEngine
 import com.example.data.UserPreferencesStore
 import com.example.model.AppTab
-import com.example.model.DispatchedNotificationRecord
 import com.example.model.FloodStatus
-import com.example.ui.components.GeminiClarificationDialog
-import com.example.ui.components.ResidingLocationDialog
-import com.example.ui.screens.AlertsDashboardScreen
-import com.example.ui.screens.LiveRadarScreen
+import com.example.ui.components.AiHelperSheet
+import com.example.ui.components.PlacePickerDialog
+import com.example.ui.components.SettingsSheet
+import com.example.ui.screens.MapScreen
 import com.example.ui.screens.RiverWaterLevelsScreen
 import com.example.ui.screens.SafetyHubScreen
+import com.example.ui.screens.WeatherScreen
 import com.example.ui.theme.AdaptiveAppBackground
 import com.example.ui.theme.AdaptiveCyanAccent
-import com.example.ui.theme.AdaptiveElevatedColor
 import com.example.ui.theme.AdaptivePrimaryText
 import com.example.ui.theme.AdaptiveSecondaryText
 import com.example.ui.theme.AdaptiveSurfaceColor
 import com.example.ui.theme.AlertRed
 import com.example.ui.theme.LankaWeatherGuardTheme
 import com.example.ui.theme.RadarCyan
-import com.example.ui.theme.SafeEmerald
-import com.example.ui.theme.WarningAmber
-import com.example.util.WeatherNotificationHelper
+import com.example.util.AlertNotifier
+import com.example.util.LocaleHelper
+import com.example.util.WeatherFormat
 import com.example.viewmodel.WeatherViewModel
 import java.util.Locale
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     private var latestNotificationIntent by mutableStateOf<Intent?>(null)
 
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        UserPreferencesStore.init(applicationContext)
-        WeatherNotificationHelper.createNotificationChannel(this)
         latestNotificationIntent = intent
         enableEdgeToEdge()
         setContent {
@@ -142,20 +147,13 @@ fun LankaWeatherGuardApp(
 ) {
     val uiState by weatherViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var pendingNotificationRecord by remember { mutableStateOf<DispatchedNotificationRecord?>(null) }
+    val configuration = LocalConfiguration.current
+    val language = remember(configuration) { LocaleHelper.current(context) }
 
     LankaWeatherGuardTheme(darkTheme = uiState.isDarkTheme) {
         val notificationPermissionLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission()
-        ) { _ ->
-            val pending = pendingNotificationRecord
-            if (pending != null) {
-                weatherViewModel.selectAndPostGeneratedNotification(context, pending)
-                pendingNotificationRecord = null
-            } else {
-                weatherViewModel.triggerNotificationForCurrentArea(context)
-            }
-        }
+        ) { }
 
         val locationPermissionLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -165,19 +163,26 @@ fun LankaWeatherGuardApp(
             if (granted) {
                 resolveDeviceLocation(
                     context = context,
-                    onCoordinates = { lat, lon ->
-                        weatherViewModel.onCoordinatesDetectedAndNotify(context, lat, lon)
-                    },
-                    onFallback = {
-                        weatherViewModel.openResidingLocationDialog(permissionDenied = true)
-                    }
+                    onCoordinates = { lat, lon -> weatherViewModel.onCoordinatesDetected(lat, lon) },
+                    onFallback = { weatherViewModel.openPlacePicker(permissionDenied = true) }
                 )
             } else {
-                weatherViewModel.openResidingLocationDialog(permissionDenied = true)
+                weatherViewModel.openPlacePicker(permissionDenied = true)
             }
         }
 
-        // Auto-sync weather metrics & river gauges every 10 min while the app is on screen
+        fun requestNotificationsIfNeeded() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !AlertNotifier.canPost(context)) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        val setAlertsEnabled: (Boolean) -> Unit = { enabled ->
+            weatherViewModel.setAlertsEnabled(enabled)
+            if (enabled) requestNotificationsIfNeeded()
+        }
+
+        // Keep weather and river gauges fresh while the app is on screen
         val lifecycleOwner = LocalLifecycleOwner.current
         LaunchedEffect(lifecycleOwner) {
             lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -186,139 +191,102 @@ fun LankaWeatherGuardApp(
         }
 
         LaunchedEffect(Unit) {
-            UserPreferencesStore.init(context.applicationContext)
-            weatherViewModel.syncSavedPreferencesIfNeeded()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-            weatherViewModel.triggerNotificationForCurrentArea(context)
+            if (uiState.alertsEnabled) requestNotificationsIfNeeded()
         }
 
         LaunchedEffect(notificationIntent) {
             val activeIntent = notificationIntent ?: return@LaunchedEffect
-            val fromNotification = activeIntent.getBooleanExtra(
-                WeatherNotificationHelper.EXTRA_FROM_NOTIFICATION,
-                false
-            )
-            if (fromNotification) {
-                val regionId = activeIntent.getStringExtra(
-                    WeatherNotificationHelper.EXTRA_NOTIFICATION_REGION_ID
-                )
-                val city = activeIntent.getStringExtra(
-                    WeatherNotificationHelper.EXTRA_NOTIFICATION_CITY
-                )
+            if (activeIntent.getBooleanExtra(AlertNotifier.EXTRA_FROM_NOTIFICATION, false)) {
                 weatherViewModel.handleNotificationClicked(
-                    context = context,
-                    regionId = regionId,
-                    nearestCity = city
+                    regionId = activeIntent.getStringExtra(AlertNotifier.EXTRA_NOTIFICATION_REGION_ID),
+                    nearestCity = activeIntent.getStringExtra(AlertNotifier.EXTRA_NOTIFICATION_CITY)
                 )
                 onNotificationIntentConsumed()
             }
         }
 
         val requestLocationAction = {
-            val hasFine = ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-            val hasCoarse = ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-
-            if (hasFine || hasCoarse) {
+            val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            if (hasPermission) {
                 resolveDeviceLocation(
                     context = context,
-                    onCoordinates = { lat, lon ->
-                        weatherViewModel.onCoordinatesDetectedAndNotify(context, lat, lon)
-                    },
-                    onFallback = {
-                        weatherViewModel.openResidingLocationDialog(permissionDenied = false)
-                    }
+                    onCoordinates = { lat, lon -> weatherViewModel.onCoordinatesDetected(lat, lon) },
+                    onFallback = { weatherViewModel.openPlacePicker(permissionDenied = true) }
                 )
             } else {
                 locationPermissionLauncher.launch(
-                    arrayOf(
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                    )
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
                 )
             }
-        }
-
-        val sendNotificationForCurrentAreaAction = {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            } else {
-                weatherViewModel.triggerNotificationForCurrentArea(context)
-            }
-        }
-
-        if (uiState.showResidingLocationDialog) {
-            ResidingLocationDialog(
-                regions = uiState.regions,
-                initialRegion = uiState.selectedRegion,
-                initialCity = uiState.selectedNearestCity,
-                initialInterval = uiState.selectedNotificationInterval,
-                wasPermissionDenied = uiState.wasLocationPermissionDenied,
-                onDismiss = { weatherViewModel.dismissResidingLocationDialog() },
-                onConfirmSelection = { chosenRegion, chosenCity, chosenInterval ->
-                    weatherViewModel.confirmResidingLocationAndNotify(
-                        context = context,
-                        region = chosenRegion,
-                        nearestCity = chosenCity,
-                        fromGps = false,
-                        intervalOption = chosenInterval
-                    )
-                }
-            )
-        }
-
-        if (uiState.showGeminiClarifierDialog) {
-            val currentPeakDbz = uiState.radarFrames.getOrElse(uiState.currentRadarFrameIndex) {
-                uiState.radarFrames.firstOrNull()
-            }?.peakDbz ?: 48
-            val primaryRiverStation = uiState.riverStations.firstOrNull {
-                it.district.equals(uiState.selectedRegion.name, ignoreCase = true)
-            } ?: uiState.riverStations.maxByOrNull { it.floodStatus.severityRank }
-
-            GeminiClarificationDialog(
-                selectedRegion = uiState.selectedRegion,
-                selectedNearestCity = uiState.selectedNearestCity,
-                regionalReport = uiState.regionalReport,
-                peakDbz = currentPeakDbz,
-                primaryStation = primaryRiverStation,
-                messages = uiState.geminiMessages,
-                isThinking = uiState.isGeminiThinking,
-                onAskQuestion = { question -> weatherViewModel.askGeminiClarification(question) },
-                onDismiss = { weatherViewModel.dismissGeminiClarifier() }
-            )
-        }
-
-        if (uiState.currentTab != AppTab.ALERTS) {
-            BackHandler {
-                weatherViewModel.selectTab(AppTab.ALERTS)
-            }
-        }
-
-        var showOverflowMenu by remember { mutableStateOf(false) }
-        val floodStationCount = uiState.riverStations.count {
-            it.floodStatus == FloodStatus.MAJOR_FLOOD || it.floodStatus == FloodStatus.MINOR_FLOOD
         }
 
         val primaryStationForArea = remember(uiState.riverStations, uiState.selectedRegion, uiState.selectedNearestCity) {
             weatherViewModel.primaryStationForCurrentArea()
         }
+
+        // Alerts are worked out from the data on screen, in the app language
+        val alerts = remember(uiState.regionalReport, uiState.riverStations, primaryStationForArea, configuration) {
+            AlertEngine.build(
+                res = context.resources,
+                region = uiState.selectedRegion,
+                city = uiState.selectedNearestCity,
+                report = uiState.regionalReport,
+                stations = uiState.riverStations,
+                nearStation = primaryStationForArea
+            )
+        }
+
+        if (uiState.showPlacePicker) {
+            PlacePickerDialog(
+                regions = uiState.regions,
+                initialRegion = uiState.selectedRegion,
+                initialCity = uiState.selectedNearestCity,
+                wasPermissionDenied = uiState.wasLocationPermissionDenied,
+                onUseMyLocation = {
+                    weatherViewModel.dismissPlacePicker()
+                    requestLocationAction()
+                },
+                onDismiss = { weatherViewModel.dismissPlacePicker() },
+                onConfirm = { region, city -> weatherViewModel.selectPlace(region, city) }
+            )
+        }
+
+        if (uiState.showSettings) {
+            SettingsSheet(
+                language = language,
+                onLanguageChange = { tag ->
+                    weatherViewModel.dismissSettings()
+                    (context as? Activity)?.let { LocaleHelper.set(it, tag) }
+                },
+                isDarkTheme = uiState.isDarkTheme,
+                onDarkThemeChange = { weatherViewModel.setDarkTheme(it) },
+                alertsEnabled = uiState.alertsEnabled,
+                onAlertsEnabledChange = setAlertsEnabled,
+                onOpenUrl = { openUrl(context, it) },
+                onDismiss = { weatherViewModel.dismissSettings() }
+            )
+        }
+
+        if (uiState.showAiHelper) {
+            AiHelperSheet(
+                cityName = uiState.selectedNearestCity,
+                messages = uiState.aiMessages,
+                isThinking = uiState.isAiThinking,
+                onAsk = { weatherViewModel.askAiHelper(it, language.ifEmpty { configuration.locales[0].language }) },
+                onDismiss = { weatherViewModel.dismissAiHelper() }
+            )
+        }
+
+        if (uiState.currentTab != AppTab.ALERTS) {
+            BackHandler { weatherViewModel.selectTab(AppTab.ALERTS) }
+        }
+
+        val floodStationCount = uiState.riverStations.count {
+            it.floodStatus == FloodStatus.MAJOR_FLOOD || it.floodStatus == FloodStatus.MINOR_FLOOD
+        }
+        var showPlacesMenu by remember { mutableStateOf(false) }
+        var showOverflowMenu by remember { mutableStateOf(false) }
 
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -331,55 +299,110 @@ fun LankaWeatherGuardApp(
                         .background(AdaptiveAppBackground)
                         .statusBarsPadding()
                 ) {
-                    // One clean row: tappable location on the left, three icon actions on the right
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(start = 8.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { weatherViewModel.openResidingLocationDialog(permissionDenied = false) }
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
-                                .testTag("top_bar_residing_area_chip"),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.LocationOn,
-                                contentDescription = null,
-                                tint = AdaptivePrimaryText,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Column(modifier = Modifier.weight(1f, fill = false)) {
-                                Text(
-                                    text = uiState.selectedNearestCity,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = AdaptivePrimaryText,
-                                    fontWeight = FontWeight.Normal,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                        // Place name: tap to switch between saved places, use GPS or add a place
+                        Box(modifier = Modifier.weight(1f)) {
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { showPlacesMenu = true }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    .testTag("top_bar_residing_area_chip"),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (uiState.isGpsDetected) Icons.Default.MyLocation else Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    tint = AdaptivePrimaryText,
+                                    modifier = Modifier.size(22.dp)
                                 )
-                                Text(
-                                    text = if (uiState.isGpsDetected) {
-                                        "${uiState.selectedRegion.name} · from GPS"
-                                    } else {
-                                        "${uiState.selectedRegion.name} District"
-                                    },
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = AdaptiveSecondaryText,
-                                    maxLines = 1
+                                Column(modifier = Modifier.weight(1f, fill = false)) {
+                                    Text(
+                                        text = uiState.selectedNearestCity,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = AdaptivePrimaryText,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.district_name, uiState.selectedRegion.name),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = AdaptiveSecondaryText,
+                                        maxLines = 1
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.ExpandMore,
+                                    contentDescription = stringResource(R.string.change_place),
+                                    tint = AdaptiveSecondaryText,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
-                            Icon(
-                                imageVector = Icons.Default.ExpandMore,
-                                contentDescription = "Change area",
-                                tint = AdaptiveSecondaryText,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            DropdownMenu(expanded = showPlacesMenu, onDismissRequest = { showPlacesMenu = false }) {
+                                uiState.savedPlaces.forEach { place ->
+                                    val isCurrent = place.regionId == uiState.selectedRegion.id &&
+                                        place.city.equals(uiState.selectedNearestCity, ignoreCase = true)
+                                    val placeRegion = uiState.regions.firstOrNull { it.id == place.regionId }
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(place.city, fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal)
+                                                placeRegion?.let {
+                                                    Text(
+                                                        stringResource(R.string.district_name, it.name),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = AdaptiveSecondaryText
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        leadingIcon = {
+                                            Icon(if (isCurrent) Icons.Default.Check else Icons.Default.Place, contentDescription = null)
+                                        },
+                                        trailingIcon = if (uiState.savedPlaces.size > 1) {
+                                            {
+                                                IconButton(onClick = { weatherViewModel.removePlace(place) }) {
+                                                    Icon(
+                                                        Icons.Default.Close,
+                                                        contentDescription = stringResource(R.string.remove_place, place.city),
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            }
+                                        } else null,
+                                        onClick = {
+                                            showPlacesMenu = false
+                                            if (!isCurrent) weatherViewModel.selectSavedPlace(place)
+                                        },
+                                        modifier = Modifier.testTag("saved_place_${place.city.lowercase(Locale.US).replace(' ', '_')}")
+                                    )
+                                }
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.use_my_location)) },
+                                    leadingIcon = { Icon(Icons.Default.MyLocation, contentDescription = null) },
+                                    onClick = {
+                                        showPlacesMenu = false
+                                        requestLocationAction()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.add_place)) },
+                                    leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
+                                    enabled = uiState.savedPlaces.size < UserPreferencesStore.MAX_PLACES,
+                                    onClick = {
+                                        showPlacesMenu = false
+                                        weatherViewModel.openPlacePicker()
+                                    },
+                                    modifier = Modifier.testTag("add_place_button")
+                                )
+                            }
                         }
 
                         Box {
@@ -387,23 +410,22 @@ fun LankaWeatherGuardApp(
                                 onClick = { showOverflowMenu = true },
                                 modifier = Modifier.testTag("top_bar_more_button")
                             ) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "More options", tint = AdaptiveSecondaryText)
+                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more_options), tint = AdaptiveSecondaryText)
                             }
-                            DropdownMenu(
-                                expanded = showOverflowMenu,
-                                onDismissRequest = { showOverflowMenu = false }
-                            ) {
+                            DropdownMenu(expanded = showOverflowMenu, onDismissRequest = { showOverflowMenu = false }) {
+                                if (weatherViewModel.isAiHelperAvailable) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.ai_title)) },
+                                        leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            weatherViewModel.openAiHelper()
+                                        },
+                                        modifier = Modifier.testTag("top_bar_ask_gemini_button")
+                                    )
+                                }
                                 DropdownMenuItem(
-                                    text = { Text("Ask the AI helper") },
-                                    leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        weatherViewModel.openGeminiClarifier()
-                                    },
-                                    modifier = Modifier.testTag("top_bar_ask_gemini_button")
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Refresh now") },
+                                    text = { Text(stringResource(R.string.refresh_now)) },
                                     leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
                                     enabled = !uiState.isLoading,
                                     onClick = {
@@ -413,18 +435,13 @@ fun LankaWeatherGuardApp(
                                     modifier = Modifier.testTag("top_bar_refresh_button")
                                 )
                                 DropdownMenuItem(
-                                    text = { Text(if (uiState.isDarkTheme) "Light theme" else "Dark theme") },
-                                    leadingIcon = {
-                                        Icon(
-                                            if (uiState.isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                                            contentDescription = null
-                                        )
-                                    },
+                                    text = { Text(stringResource(R.string.settings)) },
+                                    leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
                                     onClick = {
                                         showOverflowMenu = false
-                                        weatherViewModel.setDarkTheme(!uiState.isDarkTheme)
+                                        weatherViewModel.openSettings()
                                     },
-                                    modifier = Modifier.testTag("theme_mode_toggle_button")
+                                    modifier = Modifier.testTag("top_bar_settings_button")
                                 )
                             }
                         }
@@ -440,10 +457,7 @@ fun LankaWeatherGuardApp(
                 }
             },
             bottomBar = {
-                NavigationBar(
-                    containerColor = AdaptiveSurfaceColor,
-                    tonalElevation = 0.dp
-                ) {
+                NavigationBar(containerColor = AdaptiveSurfaceColor, tonalElevation = 0.dp) {
                     AppTab.entries.forEach { tab ->
                         val selected = uiState.currentTab == tab
                         NavigationBarItem(
@@ -466,16 +480,11 @@ fun LankaWeatherGuardApp(
                                             AppTab.RIVERS -> if (selected) Icons.Filled.Water else Icons.Outlined.Water
                                             AppTab.SAFETY -> if (selected) Icons.Filled.HealthAndSafety else Icons.Outlined.HealthAndSafety
                                         },
-                                        contentDescription = tab.label
+                                        contentDescription = null
                                     )
                                 }
                             },
-                            label = {
-                                Text(
-                                    text = tab.label,
-                                    style = MaterialTheme.typography.labelMedium
-                                )
-                            },
+                            label = { Text(text = stringResource(tab.labelRes), style = MaterialTheme.typography.labelMedium, maxLines = 1) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = AdaptivePrimaryText,
                                 selectedTextColor = AdaptivePrimaryText,
@@ -495,51 +504,27 @@ fun LankaWeatherGuardApp(
                     .padding(innerPadding)
             ) {
                 when (uiState.currentTab) {
-                    AppTab.ALERTS -> AlertsDashboardScreen(
+                    AppTab.ALERTS -> WeatherScreen(
                         selectedNearestCity = uiState.selectedNearestCity,
-                        alerts = uiState.alerts,
+                        alerts = alerts,
+                        alertsEnabled = uiState.alertsEnabled,
+                        onAlertsEnabledChange = setAlertsEnabled,
                         regionalReport = uiState.regionalReport,
                         riverStations = uiState.riverStations,
                         primaryStation = primaryStationForArea,
                         isSyncing = uiState.isLoading,
                         onRefresh = { weatherViewModel.refreshAllTelemetry() },
-                        onSendAreaNotificationNow = sendNotificationForCurrentAreaAction,
                         onOpenRiversTab = { weatherViewModel.selectTab(AppTab.RIVERS) },
-                        onDialEmergencyDmc = { dialEmergencyNumber(context, "117") }
+                        onDialEmergencyDmc = { dialNumber(context, "117") }
                     )
 
-                    AppTab.RADAR -> LiveRadarScreen(
-                        liveMapMode = uiState.liveMapMode,
-                        islandSnapshots = uiState.islandSnapshots,
-                        selectedZoomEarthLayer = uiState.selectedZoomEarthLayer,
-                        liveMapOverlayMetric = uiState.liveMapOverlayMetric,
-                        radarFrames = uiState.radarFrames,
-                        currentFrameIndex = uiState.currentRadarFrameIndex,
-                        isRadarPlaying = uiState.isRadarPlaying,
-                        activeLayers = uiState.activeRadarLayers,
-                        stations = uiState.riverStations,
-                        regions = uiState.regions,
+                    AppTab.RADAR -> MapScreen(
                         selectedRegion = uiState.selectedRegion,
                         selectedNearestCity = uiState.selectedNearestCity,
-                        regionalReport = uiState.regionalReport,
-                        selectedStation = uiState.selectedStationDetail,
-                        onSelectMapMode = { weatherViewModel.setLiveMapMode(it) },
-                        onSelectZoomEarthLayer = { weatherViewModel.setZoomEarthLayer(it) },
-                        onSelectMapOverlayMetric = { weatherViewModel.setLiveMapOverlayMetric(it) },
-                        onTogglePlayPause = { weatherViewModel.toggleRadarPlayPause() },
-                        onFrameIndexChanged = { weatherViewModel.setRadarFrameIndex(it) },
-                        onToggleLayer = { weatherViewModel.toggleRadarLayer(it) },
-                        onStationSelected = { weatherViewModel.selectStationDetail(it) },
-                        onSelectRegionAndCity = { region, city ->
-                            weatherViewModel.confirmResidingLocationAndNotify(
-                                context = context,
-                                region = region,
-                                nearestCity = city,
-                                fromGps = false
-                            )
-                        },
-                        onOpenExternalUrl = { url -> openExternalGovernmentUrl(context, url) },
-                        onOpenGeminiClarifier = { prompt -> weatherViewModel.openGeminiClarifier(prompt) }
+                        selectedLayer = uiState.selectedMapLayer,
+                        onLayerSelected = { weatherViewModel.setMapLayer(it) },
+                        islandSnapshots = uiState.islandSnapshots,
+                        onOpenExternalUrl = { openUrl(context, it) }
                     )
 
                     AppTab.RIVERS -> RiverWaterLevelsScreen(
@@ -553,34 +538,43 @@ fun LankaWeatherGuardApp(
                     )
 
                     AppTab.SAFETY -> SafetyHubScreen(
-                        selectedRegion = uiState.selectedRegion,
-                        selectedNearestCity = uiState.selectedNearestCity,
-                        selectedNotificationInterval = uiState.selectedNotificationInterval,
-                        governmentAnnouncements = uiState.governmentAnnouncements,
-                        selectedGovCategoryFilter = uiState.selectedGovCategoryFilter,
-                        shelters = uiState.shelters,
-                        checklist = uiState.checklist,
-                        onSelectGovCategoryFilter = { weatherViewModel.setGovCategoryFilter(it) },
-                        onSelectNotificationInterval = { interval ->
-                            weatherViewModel.selectNotificationInterval(context, interval)
-                        },
-                        onOpenOfficialUrl = { url -> openExternalGovernmentUrl(context, url) },
+                        checkedChecklistIds = uiState.checkedChecklistIds,
+                        alertsEnabled = uiState.alertsEnabled,
+                        onAlertsEnabledChange = setAlertsEnabled,
+                        onOpenOfficialUrl = { openUrl(context, it) },
                         onToggleChecklistItem = { weatherViewModel.toggleChecklistItem(it) },
-                        onDialNumber = { dialEmergencyNumber(context, it) },
+                        onDialNumber = { dialNumber(context, it) },
                         onShareSafetyReport = {
-                            val topRiver = uiState.riverStations.maxByOrNull { it.floodStatus.severityRank }
+                            val res = context.resources
+                            val report = uiState.regionalReport
                             val shareText = buildString {
-                                appendLine("🇱🇰 Lanka Weather Guard — Official Situation Report")
-                                appendLine("Residing Area: ${uiState.selectedNearestCity}, ${uiState.selectedRegion.name} (${uiState.selectedRegion.primaryRiverBasin})")
-                                appendLine("Auto-Notification Interval: ${uiState.selectedNotificationInterval.label}")
-                                appendLine("Weather: ${uiState.regionalReport.weatherDescription}, ${String.format(Locale.US, "%.1f", uiState.regionalReport.rain24hMm)}mm/24h, Gusts ${uiState.regionalReport.windGustKmh.toInt()} km/h")
-                                if (topRiver != null) {
-                                    appendLine("Critical River Gauge: ${topRiver.riverName} at ${topRiver.stationName} = ${String.format(Locale.US, "%.2fm", topRiver.currentLevelM)} (${topRiver.floodStatus.label})")
+                                appendLine(res.getString(R.string.share_title, uiState.selectedNearestCity, uiState.selectedRegion.name))
+                                if (report.isLiveApiData) {
+                                    appendLine(
+                                        res.getString(
+                                            R.string.share_weather,
+                                            res.getString(WeatherFormat.conditionRes(report.weatherCode)),
+                                            report.currentTempC.roundToInt(),
+                                            report.rain24hMm.roundToInt(),
+                                            report.windGustKmh.roundToInt()
+                                        )
+                                    )
                                 }
-                                appendLine("Official Portals: https://www.dmc.gov.lk | https://riverwatch.lk | https://www.news.lk")
-                                appendLine("Emergency DMC Hotline: 117 | Suwa Seriya: 1990")
+                                primaryStationForArea?.takeIf { it.hasLiveReading }?.let { st ->
+                                    appendLine(
+                                        res.getString(
+                                            R.string.share_river,
+                                            st.riverName,
+                                            st.stationName,
+                                            String.format(Locale.US, "%.2f", st.currentLevelM),
+                                            res.getString(st.floodStatus.labelRes)
+                                        )
+                                    )
+                                }
+                                alerts.firstOrNull { it.isUserDistrictMatch }?.let { appendLine("⚠ ${it.title}") }
+                                append(res.getString(R.string.share_hotlines))
                             }
-                            shareSituationText(context, shareText)
+                            shareText(context, shareText, res.getString(R.string.share))
                         }
                     )
                 }
@@ -597,52 +591,38 @@ private fun resolveDeviceLocation(
 ) {
     try {
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-        val gpsLoc = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-        val netLoc = locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-        val best = gpsLoc ?: netLoc
-        if (best != null) {
-            onCoordinates(best.latitude, best.longitude)
-        } else {
-            onFallback()
-        }
+        val best = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        if (best != null) onCoordinates(best.latitude, best.longitude) else onFallback()
     } catch (_: Exception) {
         onFallback()
     }
 }
 
-private fun openExternalGovernmentUrl(context: Context, url: String) {
+private fun openUrl(context: Context, url: String) {
     try {
-        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(browserIntent)
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (_: Exception) {
-        // Ignore if no browser activity on headless test device
+        // No browser installed
     }
 }
 
-private fun dialEmergencyNumber(context: Context, phone: String) {
+private fun dialNumber(context: Context, phone: String) {
     try {
-        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(intent)
+        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (_: Exception) {
-        // Ignore if no dialer activity on headless test device
+        // No dialer on this device
     }
 }
 
-private fun shareSituationText(context: Context, message: String) {
+private fun shareText(context: Context, message: String, title: String) {
     try {
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_TEXT, message)
         }
-        val chooser = Intent.createChooser(sendIntent, "Share Weather Situation Report").apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(chooser)
+        context.startActivity(Intent.createChooser(sendIntent, title).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (_: Exception) {
-        // Ignore if no chooser activity on headless test device
+        // No app to share with
     }
 }

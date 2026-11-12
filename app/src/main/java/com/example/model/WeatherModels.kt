@@ -1,19 +1,19 @@
 package com.example.model
 
+import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.Color
+import com.example.R
 import com.example.ui.theme.AdvisoryYellow
 import com.example.ui.theme.AlertRed
-import com.example.ui.theme.RadarCyan
 import com.example.ui.theme.SafeEmerald
 import com.example.ui.theme.WarningAmber
 import java.util.Locale
-import kotlin.math.max
 
-enum class AppTab(val route: String, val label: String) {
-    ALERTS("alerts", "Weather"),
-    RADAR("radar", "Map"),
-    RIVERS("rivers", "Rivers"),
-    SAFETY("safety", "Safety")
+enum class AppTab(val route: String, @StringRes val labelRes: Int) {
+    ALERTS("alerts", R.string.tab_weather),
+    RADAR("radar", R.string.tab_map),
+    RIVERS("rivers", R.string.tab_rivers),
+    SAFETY("safety", R.string.tab_safety)
 }
 
 enum class AlertSeverity(
@@ -29,75 +29,36 @@ enum class AlertSeverity(
 
 enum class FloodStatus(
     val label: String,
-    val shortLabel: String,
+    @StringRes val labelRes: Int,
     val color: Color,
     val severityRank: Int
 ) {
-    MAJOR_FLOOD("Major Flood", "MAJOR FLOOD", AlertRed, 4),
-    MINOR_FLOOD("Minor Flood", "MINOR FLOOD", WarningAmber, 3),
-    ALERT("Alert Level", "ALERT", AdvisoryYellow, 2),
-    NORMAL("Normal", "NORMAL", SafeEmerald, 1)
+    MAJOR_FLOOD("Major flooding", R.string.flood_status_major, AlertRed, 4),
+    MINOR_FLOOD("Minor flooding", R.string.flood_status_minor, WarningAmber, 3),
+    ALERT("Near alert level", R.string.flood_status_alert, AdvisoryYellow, 2),
+    NORMAL("Normal", R.string.flood_status_normal, SafeEmerald, 1)
 }
 
-enum class WaterTrend(val label: String, val symbol: String) {
-    RISING_FAST("Rising Rapidly", "▲▲"),
-    RISING("Rising", "▲"),
-    STABLE("Stable", "●"),
-    FALLING("Receding", "▼")
+enum class WaterTrend(val label: String, @StringRes val labelRes: Int) {
+    RISING_FAST("Rising fast", R.string.trend_rising_fast),
+    RISING("Rising", R.string.trend_rising),
+    STABLE("Steady", R.string.trend_steady),
+    FALLING("Falling", R.string.trend_falling)
 }
 
-enum class HydrographTimeRange(
-    val id: String,
-    val shortLabel: String,
-    val fullTitle: String,
-    val xAxisStartLabel: String,
-    val xAxisMidLabel: String,
-    val xAxisEndLabel: String
-) {
-    HOURS_6("6h", "6H", "Last 6 Hours (Hourly)", "-6h", "-3h", "Now"),
-    HOURS_24("24h", "24H", "Last 24 Hours (3-Hourly)", "-24h", "-12h", "Now"),
-    DAYS_3("3d", "3D", "Last 3 Days (72h Trend)", "-3 Days", "-36h", "Now"),
-    DAYS_7("7d", "7D", "Last 7 Days (Weekly Basin Curve)", "-7 Days", "-3.5d", "Now")
+enum class HydrographTimeRange(val id: String, @StringRes val labelRes: Int, val hours: Int) {
+    HOURS_6("6h", R.string.range_6h, 6),
+    HOURS_24("24h", R.string.range_24h, 24)
 }
 
-enum class NotificationIntervalOption(
-    val id: String,
-    val label: String,
-    val shortChipLabel: String,
-    val intervalMinutes: Int
-) {
-    MIN_5("5m", "Every 5 min", "5 min", 5),
-    MIN_15("15m", "Every 15 min", "15 min", 15),
-    MIN_30("30m", "Every 30 min", "30 min", 30),
-    HOUR_1("1h", "Every 1 hour", "1 hour", 60),
-    HOUR_2("2h", "Every 2 hours", "2 hour", 120),
-    HOUR_4("4h", "Every 4 hours", "4 hour", 240);
-
-    val durationMillis: Long
-        get() = intervalMinutes * 60_000L
-}
-
-enum class RadarLayerType(val label: String) {
-    PRECIPITATION_DBZ("Rain Radar (dBZ)"),
-    RIVER_GAUGES("RiverWatch Gauges"),
-    WIND_VECTORS("Monsoon Wind"),
-    LANDSLIDE_ZONES("NBRO Landslide")
-}
-
-enum class LiveMapMode(val label: String) {
-    INTERACTIVE_LIVE_MAP("Live Weather Map"),
-    WINDY_LIVE("Windy.com Live"),
-    TACTICAL_DOPPLER_CANVAS("Doppler Radar")
-}
-
-enum class ZoomEarthLayer(val label: String, val windyOverlay: String) {
-    LIVE_HOME("Rain & Thunder", "rain"),
-    PRECIPITATION("Rain Accumulation", "rainAccu"),
-    RADAR("Weather Radar (dBZ)", "radar"),
-    SATELLITE("Satellite Clouds", "clouds"),
-    WIND_SPEED("Wind & Gusts", "wind"),
-    TEMPERATURE("Live Temperature", "temp"),
-    PRESSURE("Pressure (hPa)", "pressure");
+/** Live map layers (served by the Windy.com embed). */
+enum class ZoomEarthLayer(@StringRes val labelRes: Int, val windyOverlay: String) {
+    LIVE_HOME(R.string.layer_rain_thunder, "rain"),
+    RADAR(R.string.layer_radar, "radar"),
+    SATELLITE(R.string.layer_clouds, "clouds"),
+    WIND_SPEED(R.string.layer_wind, "wind"),
+    TEMPERATURE(R.string.layer_temperature, "temp"),
+    PRECIPITATION(R.string.layer_rain_total, "rainAccu");
 
     fun buildWindyEmbedUrl(lat: Double, lon: Double, zoom: Int = 10): String {
         val formattedLat = String.format(Locale.US, "%.4f", lat)
@@ -111,91 +72,6 @@ enum class ZoomEarthLayer(val label: String, val windyOverlay: String) {
         return "https://www.windy.com/$formattedLat/$formattedLon?-$windyOverlay,$formattedLat,$formattedLon,$zoom,m:eI5adTl"
     }
 }
-
-enum class LiveMapOverlayMetric(val label: String, val code: String) {
-    RADAR_PRECIP("Live Rain & Temp", "radar"),
-    TEMP_HUMIDITY("Temperature (°C)", "temp"),
-    PRECIP_24H("Precipitation (mm)", "precip"),
-    RIVER_GAUGES("RiverWatch Gauges", "rivers"),
-    WIND_PRESSURE("Wind & Pressure", "wind")
-}
-
-data class DbzValueMeaning(
-    val dbzRange: String,
-    val shortTitle: String,
-    val rainRateMmPerHour: String,
-    val weatherMeaning: String,
-    val citizenAction: String,
-    val badgeColor: Color,
-    val minDbz: Int,
-    val maxDbz: Int
-)
-
-val RadarDbzMeaningList: List<DbzValueMeaning> = listOf(
-    DbzValueMeaning(
-        dbzRange = "15 – 25 dBZ",
-        shortTitle = "Light Rain / Drizzle",
-        rainRateMmPerHour = "0.5 – 2.5 mm/h",
-        weatherMeaning = "Small water droplets or light passing monsoon drizzle.",
-        citizenAction = "Safe for normal outdoor activities; carry an umbrella.",
-        badgeColor = SafeEmerald,
-        minDbz = 15,
-        maxDbz = 25
-    ),
-    DbzValueMeaning(
-        dbzRange = "26 – 35 dBZ",
-        shortTitle = "Moderate Steady Rain",
-        rainRateMmPerHour = "2.5 – 10 mm/h",
-        weatherMeaning = "Steady regional rainfall wetting roads and feeding river tributaries.",
-        citizenAction = "Drive carefully on wet roads; monitor local river gauges.",
-        badgeColor = RadarCyan,
-        minDbz = 26,
-        maxDbz = 35
-    ),
-    DbzValueMeaning(
-        dbzRange = "36 – 45 dBZ",
-        shortTitle = "Heavy Downpour",
-        rainRateMmPerHour = "10 – 30 mm/h",
-        weatherMeaning = "Dense monsoon rain cells causing rapid surface runoff and rising drains.",
-        citizenAction = "Avoid low-lying floodplains; secure outdoor items.",
-        badgeColor = AdvisoryYellow,
-        minDbz = 36,
-        maxDbz = 45
-    ),
-    DbzValueMeaning(
-        dbzRange = "46 – 52 dBZ",
-        shortTitle = "Torrential Squall",
-        rainRateMmPerHour = "30 – 65 mm/h",
-        weatherMeaning = "Intense convective thunderstorm cell with strong wind gusts & flash flooding.",
-        citizenAction = "Postpone travel; high risk of urban road flooding & slope instability.",
-        badgeColor = WarningAmber,
-        minDbz = 46,
-        maxDbz = 52
-    ),
-    DbzValueMeaning(
-        dbzRange = "53 – 65+ dBZ",
-        shortTitle = "Extreme Cloudburst",
-        rainRateMmPerHour = "65 – 150+ mm/h",
-        weatherMeaning = "Severe tropical storm core capable of rapid river overflow & landslides.",
-        citizenAction = "IMMEDIATE DANGER: Move to high ground & follow DMC 117 evacuation orders!",
-        badgeColor = AlertRed,
-        minDbz = 53,
-        maxDbz = 99
-    )
-)
-
-fun getDbzMeaningForValue(dbz: Int): DbzValueMeaning {
-    return RadarDbzMeaningList.firstOrNull { dbz in it.minDbz..it.maxDbz }
-        ?: if (dbz < 15) RadarDbzMeaningList.first() else RadarDbzMeaningList.last()
-}
-
-data class GeminiClarificationMessage(
-    val id: String,
-    val isUser: Boolean,
-    val text: String,
-    val metricTopic: String = "Weather & Flood Telemetry",
-    val timestampText: String = "Just now"
-)
 
 data class SriLankaRegion(
     val id: String,
@@ -532,45 +408,6 @@ private val SRI_LANKA_CITY_COORDINATES: Map<String, Pair<Double, Double>> = mapO
     "welioya" to (8.9674 to 80.7814)
 )
 
-data class DispatchedNotificationRecord(
-    val id: String,
-    val title: String,
-    val body: String,
-    val district: String,
-    val nearestCity: String,
-    val riverBasin: String,
-    val severity: AlertSeverity,
-    val timestampText: String,
-    val sourceMethod: String,
-    val intervalLabel: String = "Every 15 min",
-    val officialPortalUrl: String = "https://www.dmc.gov.lk",
-    val temperatureC: Double = 28.0,
-    val feelsLikeC: Double = 31.0,
-    val hourlyPrecipitationMm: Double = 4.2,
-    val rain24hMm: Double = 142.0,
-    val currentWeatherSummary: String = "Heavy Monsoon Showers • Gusts 58 km/h",
-    val forecastSummary: String = "Next 24h: Heavy Rain (90% prob, 25°C–30°C)",
-    val govAnnouncementHeadline: String = "DMC Flood & Weather Directive Active",
-    val govReferenceCode: String = "DMC/SL/2025"
-)
-
-data class GovernmentAnnouncement(
-    val id: String,
-    val headline: String,
-    val issuingMinistryOrAgency: String,
-    val referenceCode: String,
-    val category: String,
-    val publishedTimeText: String,
-    val targetDistricts: List<String>,
-    val targetCities: List<String>,
-    val summary: String,
-    val keyDirectives: List<String>,
-    val officialUrl: String,
-    val officialPortalName: String,
-    val severity: AlertSeverity,
-    val isResidingAreaMatch: Boolean = false
-)
-
 data class WeatherAlert(
     val id: String,
     val title: String,
@@ -613,14 +450,20 @@ data class RiverGaugeStation(
     // Live gauge readings over the last 24h (oldest → newest); empty when the feed is unavailable
     val history24hM: List<Double> = emptyList(),
     // Unit the Irrigation Dept publishes this gauge in ("m" or "ft"); all *M fields are always metres
-    val sourceUnit: String = "m"
+    val sourceUnit: String = "m",
+    // True only when the level came from the Irrigation Dept feed (not the built-in reference values)
+    val hasLiveReading: Boolean = false,
+    // When the latest gauge reading was taken
+    val readingTimeMillis: Long? = null
 ) {
     /** Level as published by the Irrigation Dept, e.g. "12.1 ft", for gauges people know in feet. */
     val publishedLevelText: String?
         get() = if (sourceUnit == "ft") String.format(java.util.Locale.US, "%.1f ft", currentLevelM / FEET_TO_METRES) else null
 
+    // Without a live reading the level is only a reference value, so never report a flood from it
     val floodStatus: FloodStatus
         get() = when {
+            !hasLiveReading -> FloodStatus.NORMAL
             currentLevelM >= majorFloodLevelM -> FloodStatus.MAJOR_FLOOD
             currentLevelM >= minorFloodLevelM -> FloodStatus.MINOR_FLOOD
             currentLevelM >= alertLevelM -> FloodStatus.ALERT
@@ -641,42 +484,12 @@ data class RiverGaugeStation(
     val fillRatioToMajor: Float
         get() = (currentLevelM / (majorFloodLevelM * 1.15)).toFloat().coerceIn(0.08f, 1f)
 
+    /** Live readings for the chosen range (oldest → newest); empty when there are none. */
     fun getLevelsForTimeRange(range: HydrographTimeRange): List<Double> {
-        val base6h = hourlyLevelsM.ifEmpty { listOf(previousLevelM, currentLevelM) }
-        val earliest6h = base6h.first()
-        val normalBaseline = max(0.45, alertLevelM * 0.62)
+        if (!hasLiveReading) return emptyList()
         return when (range) {
-            HydrographTimeRange.HOURS_6 -> base6h
-            HydrographTimeRange.HOURS_24 -> if (history24hM.size >= 2) history24hM else listOf(
-                normalBaseline + (earliest6h - normalBaseline) * 0.25,
-                normalBaseline + (earliest6h - normalBaseline) * 0.42,
-                normalBaseline + (earliest6h - normalBaseline) * 0.60,
-                normalBaseline + (earliest6h - normalBaseline) * 0.78,
-                earliest6h,
-                base6h.getOrElse(base6h.size / 3) { previousLevelM },
-                base6h.getOrElse((base6h.size * 2) / 3) { previousLevelM },
-                currentLevelM
-            )
-            HydrographTimeRange.DAYS_3 -> listOf(
-                normalBaseline * 0.90,
-                normalBaseline * 0.96,
-                normalBaseline * 1.08,
-                normalBaseline + (earliest6h - normalBaseline) * 0.35,
-                normalBaseline + (earliest6h - normalBaseline) * 0.68,
-                earliest6h,
-                previousLevelM,
-                currentLevelM
-            )
-            HydrographTimeRange.DAYS_7 -> listOf(
-                normalBaseline * 0.82,
-                normalBaseline * 0.88,
-                normalBaseline * 0.94,
-                normalBaseline * 0.91,
-                normalBaseline * 1.12,
-                normalBaseline + (earliest6h - normalBaseline) * 0.52,
-                earliest6h,
-                currentLevelM
-            )
+            HydrographTimeRange.HOURS_6 -> history24hM.takeLast(7)
+            HydrographTimeRange.HOURS_24 -> history24hM
         }
     }
 }
@@ -705,15 +518,6 @@ data class DailyForecastItem(
     val weatherCode: Int = 3
 )
 
-data class ActivitySafetyAssessment(
-    val activityName: String,
-    val category: String,
-    val statusLabel: String,
-    val statusColor: Color,
-    val recommendation: String,
-    val safetyScore: Int // 0..100
-)
-
 data class RegionalWeatherReport(
     val region: SriLankaRegion,
     // Town the weather was fetched for (the selected nearest city or GPS town)
@@ -729,7 +533,6 @@ data class RegionalWeatherReport(
     val pressureHpa: Double,
     val hourly: List<HourlyForecastItem>,
     val daily: List<DailyForecastItem>,
-    val activityAssessments: List<ActivitySafetyAssessment>,
     val isLiveApiData: Boolean,
     val syncedTimestamp: String,
     // WMO weather code for current conditions (drives the condition icon)
@@ -739,55 +542,11 @@ data class RegionalWeatherReport(
     val windDirectionDeg: Int? = null,
     // Local times as "HH:mm"
     val sunrise: String? = null,
-    val sunset: String? = null
-)
-
-data class RadarFrame(
-    val index: Int,
-    val timeOffsetMinutes: Int,
-    val label: String,
-    val isNowcastForecast: Boolean,
-    val peakDbz: Int,
-    val activeCells: List<RadarStormCell>
-)
-
-data class RadarStormCell(
-    val id: String,
-    val centerX: Float,
-    val centerY: Float,
-    val radiusX: Float,
-    val radiusY: Float,
-    val intensityDbz: Int, // 20..62 dBZ
-    val movementDeg: Float,
-    val label: String
-) {
-    val color: Color
-        get() = when {
-            intensityDbz >= 52 -> AlertRed
-            intensityDbz >= 44 -> WarningAmber
-            intensityDbz >= 35 -> AdvisoryYellow
-            intensityDbz >= 26 -> RadarCyan
-            else -> SafeEmerald
-        }
-}
-
-data class EmergencyShelter(
-    val id: String,
-    val name: String,
-    val district: String,
-    val elevationMeters: Int,
-    val capacityPeople: Int,
-    val contactPhone: String,
-    val distanceKmText: String,
-    val facilities: List<String>
-)
-
-data class SafetyChecklistItem(
-    val id: String,
-    val title: String,
-    val detail: String,
-    val category: String,
-    val isChecked: Boolean = false
+    val sunset: String? = null,
+    // When this forecast was downloaded (0 for placeholder data)
+    val fetchedAtMillis: Long = 0L,
+    // True when the network failed and this is the last saved forecast
+    val isFromCache: Boolean = false
 )
 
 /** Live current conditions for one town on the island overview map. */
@@ -799,4 +558,12 @@ data class CityWeatherSnapshot(
     val precipitationMm: Double,
     val rainTodayMm: Double,
     val windGustKmh: Double
+)
+
+/** One message in the AI helper chat. */
+data class AiChatMessage(
+    val id: String,
+    val isUser: Boolean,
+    val text: String,
+    val failed: Boolean = false
 )

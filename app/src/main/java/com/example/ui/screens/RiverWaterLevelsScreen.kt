@@ -18,9 +18,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.TrendingDown
-import androidx.compose.material.icons.automirrored.filled.TrendingFlat
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
@@ -43,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -52,31 +50,31 @@ import com.example.R
 import com.example.model.FloodStatus
 import com.example.model.HydrographTimeRange
 import com.example.model.RiverGaugeStation
-import com.example.model.WaterTrend
 import com.example.ui.components.HydrographTimeRangeSelector
 import com.example.ui.components.RiverHydrographCurve
 import com.example.ui.components.RiverThresholdBar
 import com.example.ui.components.StatusPill
-import com.example.ui.components.friendlyLabel
+import com.example.ui.components.trendIcon
 import com.example.ui.theme.AdaptiveBorderColor
 import com.example.ui.theme.AdaptiveElevatedColor
 import com.example.ui.theme.AdaptivePrimaryText
 import com.example.ui.theme.AdaptiveSecondaryText
 import com.example.ui.theme.AdaptiveSurfaceColor
+import com.example.util.WeatherFormat
 import java.util.Locale
 import kotlin.math.roundToInt
 
-private enum class RiverStatusFilter(val label: String) {
-    ALL("All"),
-    FLOODING("Flooding"),
-    WATCH("Near alert"),
-    NORMAL("Normal");
+private enum class RiverStatusFilter(val labelRes: Int) {
+    ALL(R.string.filter_all),
+    FLOODING(R.string.filter_flooding),
+    WATCH(R.string.filter_near_alert),
+    NORMAL(R.string.filter_normal);
 
-    fun matches(status: FloodStatus): Boolean = when (this) {
+    fun matches(station: RiverGaugeStation): Boolean = when (this) {
         ALL -> true
-        FLOODING -> status == FloodStatus.MINOR_FLOOD || status == FloodStatus.MAJOR_FLOOD
-        WATCH -> status == FloodStatus.ALERT
-        NORMAL -> status == FloodStatus.NORMAL
+        FLOODING -> station.floodStatus == FloodStatus.MINOR_FLOOD || station.floodStatus == FloodStatus.MAJOR_FLOOD
+        WATCH -> station.floodStatus == FloodStatus.ALERT
+        NORMAL -> station.hasLiveReading && station.floodStatus == FloodStatus.NORMAL
     }
 }
 
@@ -95,7 +93,7 @@ private fun formatLevel(metres: Double) = String.format(Locale.US, "%.2f m", met
 
 /**
  * Rivers tab: a search box, one row of status filters and a single list of gauges grouped by river.
- * Rivers with flooding gauges come first; tap a gauge for its thresholds and water-level graph.
+ * Rivers with flooding gauges come first; tap a gauge for its flood levels and water-level graph.
  */
 @Composable
 fun RiverWaterLevelsScreen(
@@ -110,21 +108,25 @@ fun RiverWaterLevelsScreen(
 ) {
     var statusFilter by rememberSaveable { mutableStateOf(RiverStatusFilter.ALL) }
     var expandedStationId by rememberSaveable { mutableStateOf<String?>(null) }
+    val res = LocalContext.current.resources
 
     val riverGroups = remember(stations, selectedBasinFilter, searchQuery, statusFilter) {
         stations
-            .filter { selectedBasinFilter == "All Basins" || it.riverName.contains(selectedBasinFilter, ignoreCase = true) }
+            .filter { selectedBasinFilter.isEmpty() || it.riverName.contains(selectedBasinFilter, ignoreCase = true) }
             .filter { stationMatchesSearchQuery(it, searchQuery) }
-            .filter { statusFilter.matches(it.floodStatus) }
+            .filter { statusFilter.matches(it) }
             .groupBy { it.riverName }
-            .map { (river, list) -> river to list.sortedByDescending { it.floodStatus.severityRank } }
+            .map { (river, list) ->
+                river to list.sortedWith(compareByDescending<RiverGaugeStation> { it.floodStatus.severityRank }.thenByDescending { it.hasLiveReading })
+            }
             .sortedWith(
                 compareByDescending<Pair<String, List<RiverGaugeStation>>> { (_, list) ->
                     list.maxOf { it.floodStatus.severityRank }
                 }.thenBy { it.first }
             )
     }
-    val shownCount = riverGroups.sumOf { it.second.size }
+    val liveCount = stations.count { it.hasLiveReading }
+    val latestReading = stations.mapNotNull { it.readingTimeMillis }.maxOrNull()
 
     LazyColumn(
         modifier = modifier
@@ -142,7 +144,7 @@ fun RiverWaterLevelsScreen(
                 trailingIcon = if (searchQuery.isNotEmpty()) {
                     {
                         IconButton(onClick = { onSearchQueryChanged("") }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                            Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.clear_search))
                         }
                     }
                 } else null,
@@ -156,44 +158,50 @@ fun RiverWaterLevelsScreen(
 
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (selectedBasinFilter != "All Basins") {
+                if (selectedBasinFilter.isNotEmpty()) {
                     item {
                         InputChip(
                             selected = true,
-                            onClick = { onBasinFilterSelected("All Basins") },
+                            onClick = { onBasinFilterSelected("") },
                             label = { Text(selectedBasinFilter) },
-                            trailingIcon = { Icon(Icons.Default.Close, contentDescription = "Show all rivers", modifier = Modifier.size(16.dp)) }
+                            trailingIcon = {
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.show_all_rivers), modifier = Modifier.size(16.dp))
+                            }
                         )
                     }
                 }
                 items(RiverStatusFilter.entries.toList(), key = { it.name }) { filter ->
-                    val count = stations.count { filter.matches(it.floodStatus) }
+                    val count = stations.count { filter.matches(it) }
                     FilterChip(
                         selected = statusFilter == filter,
                         onClick = { statusFilter = filter },
-                        label = { Text("${filter.label} ($count)") },
+                        label = { Text("${stringResource(filter.labelRes)} ($count)") },
                         modifier = Modifier.testTag("river_filter_${filter.name.lowercase(Locale.US)}")
                     )
                 }
             }
         }
 
+        item {
+            Text(
+                text = when {
+                    liveCount == 0 -> stringResource(R.string.rivers_loading_or_offline)
+                    latestReading != null -> stringResource(R.string.rivers_summary, liveCount, stations.size, WeatherFormat.time(res, latestReading))
+                    else -> stringResource(R.string.rivers_summary_no_time, liveCount, stations.size)
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = AdaptiveSecondaryText
+            )
+        }
+
         if (riverGroups.isEmpty()) {
             item {
                 Text(
-                    text = if (searchQuery.isBlank()) "No gauges in this category right now."
-                    else "No river or gauge matches \"${searchQuery.trim()}\".",
+                    text = if (searchQuery.isBlank()) stringResource(R.string.no_gauges_in_category)
+                    else stringResource(R.string.no_gauge_matches, searchQuery.trim()),
                     style = MaterialTheme.typography.bodyMedium,
                     color = AdaptiveSecondaryText,
                     modifier = Modifier.padding(vertical = 24.dp)
-                )
-            }
-        } else {
-            item {
-                Text(
-                    text = "$shownCount of ${stations.size} gauges · Irrigation Dept, updated hourly",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = AdaptiveSecondaryText
                 )
             }
         }
@@ -231,7 +239,7 @@ private fun RiverGroupCard(
             text = riverName,
             style = MaterialTheme.typography.titleMedium,
             color = AdaptivePrimaryText,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp)
         )
         stations.forEachIndexed { idx, station ->
@@ -256,10 +264,12 @@ private fun StationRow(
     onTimeRangeSelected: (HydrographTimeRange) -> Unit
 ) {
     val status = station.floodStatus
+    val live = station.hasLiveReading
+    val res = LocalContext.current.resources
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onToggle() }
+            .clickable(enabled = live) { onToggle() }
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .testTag("river_station_card_${station.id}"),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -269,7 +279,7 @@ private fun StationRow(
                 modifier = Modifier
                     .size(10.dp)
                     .clip(CircleShape)
-                    .background(status.color)
+                    .background(if (live) status.color else AdaptiveBorderColor)
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -281,47 +291,47 @@ private fun StationRow(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "${station.district} · ${status.friendlyLabel()}",
+                    text = "${station.district} · ${stringResource(if (live) status.labelRes else R.string.no_recent_reading)}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (status == FloodStatus.NORMAL) AdaptiveSecondaryText else status.color
+                    color = if (!live || status == FloodStatus.NORMAL) AdaptiveSecondaryText else status.color
                 )
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Icon(
-                        imageVector = when (station.trend) {
-                            WaterTrend.RISING_FAST, WaterTrend.RISING -> Icons.AutoMirrored.Filled.TrendingUp
-                            WaterTrend.FALLING -> Icons.AutoMirrored.Filled.TrendingDown
-                            WaterTrend.STABLE -> Icons.AutoMirrored.Filled.TrendingFlat
-                        },
-                        contentDescription = station.trend.label,
-                        tint = AdaptiveSecondaryText,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = formatLevel(station.currentLevelM),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = AdaptivePrimaryText,
-                        fontWeight = FontWeight.Bold
-                    )
+            if (live) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(
+                            imageVector = trendIcon(station.trend),
+                            contentDescription = stringResource(station.trend.labelRes),
+                            tint = AdaptiveSecondaryText,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = formatLevel(station.currentLevelM),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = AdaptivePrimaryText,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    station.publishedLevelText?.let {
+                        Text("($it)", style = MaterialTheme.typography.labelSmall, color = AdaptiveSecondaryText)
+                    }
                 }
-                station.publishedLevelText?.let {
-                    Text("($it)", style = MaterialTheme.typography.labelSmall, color = AdaptiveSecondaryText)
-                }
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = stringResource(if (expanded) R.string.hide_details else R.string.show_details),
+                    tint = AdaptiveSecondaryText
+                )
+            } else {
+                Text("—", style = MaterialTheme.typography.titleMedium, color = AdaptiveSecondaryText)
             }
-            Icon(
-                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = if (expanded) "Hide details" else "Show details",
-                tint = AdaptiveSecondaryText
-            )
         }
 
-        AnimatedVisibility(visible = expanded) {
+        AnimatedVisibility(visible = expanded && live) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    StatusPill(text = status.friendlyLabel(), color = status.color)
+                    StatusPill(text = stringResource(status.labelRes), color = status.color)
                     Text(
-                        text = "${station.trend.label} · ${String.format(Locale.US, "%+.2f m/hr", station.deltaM)}",
+                        text = stringResource(R.string.change_last_hour, stringResource(station.trend.labelRes), String.format(Locale.US, "%+.2f", station.deltaM)),
                         style = MaterialTheme.typography.bodySmall,
                         color = AdaptiveSecondaryText
                     )
@@ -329,23 +339,17 @@ private fun StationRow(
 
                 RiverThresholdBar(station = station)
 
-                Text(
-                    text = String.format(
-                        Locale.US,
-                        "Alert %.2f m · Minor flood %.2f m · Major flood %.2f m",
-                        station.alertLevelM, station.minorFloodLevelM, station.majorFloodLevelM
-                    ) + if (station.sourceUnit == "ft") "\nThis gauge is published in feet; shown here in metres." else "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AdaptiveSecondaryText
-                )
+                if (station.sourceUnit == "ft") {
+                    Text(stringResource(R.string.gauge_in_feet_note), style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
+                }
 
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(AdaptiveElevatedColor)
                         .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     HydrographTimeRangeSelector(
                         selectedRange = timeRange,
@@ -356,19 +360,24 @@ private fun StationRow(
                 }
 
                 Text(
-                    text = "Rain in catchment (24h): ${station.catchmentRainMm24h.roundToInt()} mm · " +
-                        "Flow: ${station.dischargeM3s.roundToInt()} m³/s",
+                    text = stringResource(R.string.catchment_rain_flow, station.catchmentRainMm24h.roundToInt(), station.dischargeM3s.roundToInt()),
                     style = MaterialTheme.typography.bodySmall,
                     color = AdaptivePrimaryText
                 )
                 if (station.downstreamTowns.isNotEmpty()) {
                     Text(
-                        text = "Downstream: ${station.downstreamTowns.joinToString(", ")}",
+                        text = stringResource(R.string.downstream_towns, station.downstreamTowns.joinToString(", ")),
                         style = MaterialTheme.typography.bodySmall,
                         color = AdaptivePrimaryText
                     )
                 }
-                Text(station.lastUpdatedText, style = MaterialTheme.typography.labelSmall, color = AdaptiveSecondaryText)
+                station.readingTimeMillis?.let {
+                    Text(
+                        text = stringResource(R.string.gauge_read_at, WeatherFormat.time(res, it)),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AdaptiveSecondaryText
+                    )
+                }
             }
         }
     }
