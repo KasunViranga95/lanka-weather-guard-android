@@ -1,5 +1,13 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 
+// Values from .env (not committed). AI_PROXY_URL is safe to ship; GEMINI_API_KEY is only put into
+// debug builds so a real key never ends up in a release APK.
+val dotEnv: Map<String, String> = rootProject.file(".env").takeIf { it.exists() }?.readLines()
+  ?.map { it.trim() }
+  ?.filter { it.isNotEmpty() && !it.startsWith("#") && it.contains("=") }
+  ?.associate { it.substringBefore("=").trim() to it.substringAfter("=").trim().removeSurrounding("\"") }
+  .orEmpty()
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
@@ -13,13 +21,15 @@ android {
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.lankaweatherguard.slwx"
+    applicationId = "io.github.kasunviranga95.lankaweatherguard"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    buildConfigField("String", "AI_PROXY_URL", "\"${dotEnv["AI_PROXY_URL"].orEmpty()}\"")
+    buildConfigField("String", "GEMINI_API_KEY", "\"\"")
   }
 
   // Do not remove or modify these signingConfigs. They are necessary for building, installing,
@@ -50,6 +60,7 @@ android {
       signingConfig = signingConfigs.getByName("release")
     }
     debug {
+      buildConfigField("String", "GEMINI_API_KEY", "\"${dotEnv["GEMINI_API_KEY"].orEmpty()}\"")
       // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in
       // AI Studio.
       signingConfig = signingConfigs.getByName("debugConfig")
@@ -76,6 +87,9 @@ secrets {
   propertiesFileName = ".env"
   defaultPropertiesFileName = ".env.example"
   ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
+  // Handled above so the key is only in debug builds
+  ignoreList.add("GEMINI_API_KEY")
+  ignoreList.add("AI_PROXY_URL")
 }
 
 googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
@@ -98,6 +112,8 @@ dependencies {
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.glance.appwidget)
+  implementation(libs.androidx.work.runtime.ktx)
   // implementation(libs.androidx.datastore.preferences)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)

@@ -1,26 +1,16 @@
 package com.example.data
 
-import com.example.model.ActivitySafetyAssessment
 import com.example.model.CityWeatherSnapshot
 import com.example.model.AlertSeverity
 import com.example.model.DailyForecastItem
-import com.example.model.EmergencyShelter
 import com.example.model.HourlyForecastItem
-import com.example.model.RadarFrame
-import com.example.model.RadarStormCell
 import com.example.model.RegionalWeatherReport
 import com.example.model.FEET_TO_METRES
 import com.example.model.RiverGaugeStation
-import com.example.model.SafetyChecklistItem
 import com.example.model.SriLankaRegion
-import com.example.model.WeatherAlert
 import com.example.network.IrrigationGaugeReading
 import com.example.network.TEMPERATURE_ENSEMBLE_MODELS
 import com.example.network.WeatherNetworkClient
-import com.example.ui.theme.AdvisoryYellow
-import com.example.ui.theme.AlertRed
-import com.example.ui.theme.SafeEmerald
-import com.example.ui.theme.WarningAmber
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -1231,6 +1221,9 @@ class SriLankaWeatherRepository {
         )
     )
 
+    fun regionById(id: String): SriLankaRegion? =
+        regions.firstOrNull { it.id.equals(id, ignoreCase = true) || it.name.equals(id, ignoreCase = true) }
+
     fun findNearestRegion(latitude: Double, longitude: Double): SriLankaRegion {
         return regions.minByOrNull { region ->
             haversineKm(latitude, longitude, region.latitude, region.longitude)
@@ -1285,6 +1278,27 @@ class SriLankaWeatherRepository {
 
     // Last live report per location, shown (marked offline) if a later sync fails
     private val lastLiveReports = ConcurrentHashMap<String, RegionalWeatherReport>()
+
+    /** Key the forecast for a town is saved under (same for the app, the widget and background checks). */
+    fun placeCacheKey(region: SriLankaRegion, nearestCity: String): String {
+        val (lat, lon) = region.getCoordinatesForCity(nearestCity)
+        return String.format(Locale.US, "%.3f,%.3f", lat, lon)
+    }
+
+    /** Last saved forecast for a town, or null if it has never loaded on this phone. */
+    fun cachedReport(region: SriLankaRegion, nearestCity: String): RegionalWeatherReport? {
+        val key = placeCacheKey(region, nearestCity)
+        return (lastLiveReports[key] ?: OfflineCache.loadReport(key))?.asSavedCopy()
+    }
+
+    /** Marks a saved forecast as offline and drops the hours that have already passed since it was saved. */
+    private fun RegionalWeatherReport.asSavedCopy(): RegionalWeatherReport {
+        val hoursPassed = ((System.currentTimeMillis() - fetchedAtMillis) / 3_600_000L).toInt().coerceIn(0, hourly.size)
+        return copy(isFromCache = true, hourly = hourly.drop(hoursPassed))
+    }
+
+    /** Last live river readings saved on this phone, or null. */
+    fun cachedStations(): List<RiverGaugeStation>? = lastLiveStations ?: OfflineCache.loadStations()
 
     /**
      * Weather for the selected town (or an exact GPS fix) rather than the district centre — hill-country
@@ -1389,7 +1403,7 @@ class SriLankaWeatherRepository {
                         add(
                             DailyForecastItem(
                                 dayLabel = dayNames.getOrElse(i) { "Day ${i + 1}" },
-                                dateLabel = dates.getOrNull(i)?.takeLast(5) ?: "",
+                                dateLabel = dates.getOrNull(i) ?: "",
                                 maxTempC = ensembleDaily.medianAt("temperature_2m_max", i)
                                     ?: maxTemps.getOrNull(i) ?: tempC,
                                 minTempC = ensembleDaily.medianAt("temperature_2m_min", i)
@@ -1427,20 +1441,22 @@ class SriLankaWeatherRepository {
                     pressureHpa = pressure,
                     hourly = hourlyItems,
                     daily = dailyItems,
-                    activityAssessments = computeActivitySafety(region, rain24h, windGust),
                     isLiveApiData = true,
                     syncedTimestamp = if (modelCount >= 2) {
                         "Live • $modelCount-model blend • $timestamp"
                     } else {
                         "Live Open-Meteo • $timestamp"
-                    }
-                ).also { lastLiveReports[cacheKey] = it }
+                    },
+                    fetchedAtMillis = now.time
+                ).also {
+                    lastLiveReports[cacheKey] = it
+                    OfflineCache.saveReport(cacheKey, it)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                lastLiveReports[cacheKey]?.let { cached ->
-                    cached.copy(syncedTimestamp = "Offline • showing ${cached.syncedTimestamp.substringAfterLast("• ")} data")
-                } ?: buildFallbackRegionalReport(region, timestamp).copy(locationName = nearestCity ?: region.name)
+                (lastLiveReports[cacheKey] ?: OfflineCache.loadReport(cacheKey))?.asSavedCopy()
+                    ?: buildFallbackRegionalReport(region, timestamp).copy(locationName = nearestCity ?: region.name)
             }
         }
 
@@ -1537,7 +1553,6 @@ class SriLankaWeatherRepository {
 
     suspend fun fetchLiveRiverStations(selectedRegion: SriLankaRegion): List<RiverGaugeStation> =
         withContext(Dispatchers.IO) {
-            val syncedTime = slstFormat("HH:mm").format(Date())
             val readingsByGauge = try {
                 fetchIrrigationReadings24h()
                     .filter { it.gauge != null && it.waterLevelM != null && it.creationDateMillis != null }
@@ -1554,11 +1569,7 @@ class SriLankaWeatherRepository {
             val feetGauges = feetGaugeNames()
 
             if (readingsByGauge.isNullOrEmpty()) {
-                lastLiveStations?.let { cached ->
-                    return@withContext cached.map {
-                        it.copy(lastUpdatedText = "${it.lastUpdatedText} • offline, retry $syncedTime")
-                    }
-                }
+                cachedStations()?.let { return@withContext it }
             }
 
             val stations = baseStations.mapIndexed { idx, station ->
@@ -1569,7 +1580,8 @@ class SriLankaWeatherRepository {
                 if (history == null || latest == null) {
                     return@mapIndexed station.copy(
                         dischargeM3s = discharge,
-                        lastUpdatedText = "Reference level • live gauge unavailable ($syncedTime)"
+                        hasLiveReading = false,
+                        lastUpdatedText = ""
                     )
                 }
                 // The feed sends raw numbers in the gauge's own unit; everything in the app is metres
@@ -1588,10 +1600,15 @@ class SriLankaWeatherRepository {
                     dischargeM3s = discharge,
                     hourlyLevelsM = levels.takeLast(6),
                     history24hM = levels,
-                    lastUpdatedText = "Gauge read $readingTime • synced $syncedTime SLST • Irrigation Dept"
+                    hasLiveReading = true,
+                    readingTimeMillis = latest.creationDateMillis,
+                    lastUpdatedText = readingTime
                 )
             }
-            if (!readingsByGauge.isNullOrEmpty()) lastLiveStations = stations
+            if (!readingsByGauge.isNullOrEmpty()) {
+                lastLiveStations = stations
+                OfflineCache.saveStations(stations)
+            }
             stations
         }
 
@@ -1636,7 +1653,7 @@ class SriLankaWeatherRepository {
 
     // Instant, offline-safe values shown until the first live sync completes
     fun getReferenceStations(): List<RiverGaugeStation> =
-        baseStations.map { it.copy(lastUpdatedText = "Syncing live gauges…") }
+        baseStations.map { it.copy(hasLiveReading = false, lastUpdatedText = "") }
 
     fun getPlaceholderRegionalReport(region: SriLankaRegion, nearestCity: String): RegionalWeatherReport =
         buildFallbackRegionalReport(region, slstFormat("HH:mm 'SLST'").format(Date()))
@@ -1667,428 +1684,6 @@ class SriLankaWeatherRepository {
 
     private fun slstFormat(pattern: String): SimpleDateFormat =
         SimpleDateFormat(pattern, Locale.US).apply { timeZone = TimeZone.getTimeZone("Asia/Colombo") }
-
-    fun getAlertsForRegion(
-        selectedRegion: SriLankaRegion,
-        nearestCity: String,
-        stations: List<RiverGaugeStation>,
-        report: RegionalWeatherReport
-    ): List<WeatherAlert> {
-        val localStation = findPrimaryStationForRegion(selectedRegion, nearestCity, stations)
-
-        val localCustomAlert = WeatherAlert(
-            id = "alert_residing_${selectedRegion.id}",
-            title = "Residing Area Advisory: $nearestCity (${selectedRegion.name})",
-            issuingAgency = "DMC & RiverWatch.LK Local Telemetry",
-            district = selectedRegion.name,
-            riverBasin = "${localStation.riverName} (${localStation.basinCode})",
-            severity = when {
-                localStation.floodStatus.severityRank >= 4 -> AlertSeverity.CRITICAL_RED
-                localStation.floodStatus.severityRank == 3 || report.rain24hMm >= 85.0 -> AlertSeverity.MAJOR_AMBER
-                else -> AlertSeverity.ADVISORY_YELLOW
-            },
-            summary = "Active monitoring for $nearestCity in ${selectedRegion.name} District. Nearest RiverWatch.LK station ${localStation.stationName} (${localStation.riverName}) is at ${String.format(Locale.US, "%.2f m", localStation.currentLevelM)} (${localStation.floodStatus.label}). 24h rainfall: ${String.format(Locale.US, "%.1f mm", maxOf(report.rain24hMm, localStation.catchmentRainMm24h))}.",
-            recommendedActions = listOf(
-                "Citizens in $nearestCity and downstream zones (${localStation.downstreamTowns.take(3).joinToString(", ")}) should monitor ${localStation.riverName} water levels closely.",
-                if (selectedRegion.isLandslideProne) {
-                    "NBRO Slope Watch active for ${selectedRegion.name}: inspect hillside embankments and retaining walls near $nearestCity."
-                } else {
-                    "Keep storm drains clear around $nearestCity and avoid low-lying causeways during heavy evening showers."
-                },
-                "Emergency DMC Hotline: 117 | Free Ambulance: 1990."
-            ),
-            issuedTimeText = "Updated Just Now",
-            validUntilText = "Active for $nearestCity",
-            rainfallMm24h = maxOf(report.rain24hMm, localStation.catchmentRainMm24h),
-            windGustKmh = report.windGustKmh,
-            isUserDistrictMatch = true
-        )
-
-        val rawAlerts = listOf(
-            WeatherAlert(
-                id = "alert_kalu_major_flood",
-                title = "Red Flood Evacuation Warning: Kalu Ganga Basin (Ratnapura & Ellagawa)",
-                issuingAgency = "Department of Irrigation • RiverWatch.LK",
-                district = "Ratnapura",
-                riverBasin = "Kalu Ganga (RB 03)",
-                severity = AlertSeverity.CRITICAL_RED,
-                summary = "Water level at Ratnapura gauge (9.72m) has exceeded Major Flood Level (9.50m) and Ellagawa (11.40m), Millakanda (6.85m), Magura (6.32m), and Putupaula (4.38m) are in Minor Flood stage.",
-                recommendedActions = listOf(
-                    "Evacuate low-lying areas in Ratnapura, Kuruwita, Eheliyagoda, Horana, Bulathsinhala, Dodangoda, and Millaniya immediately.",
-                    "Disconnect main electrical breakers before floodwaters enter ground floor premises.",
-                    "Do not attempt to drive or walk across submerged causeways along A4/A8 corridors."
-                ),
-                issuedTimeText = "Issued 25 mins ago",
-                validUntilText = "Valid for next 24 hours",
-                rainfallMm24h = 212.4,
-                windGustKmh = 54.0
-            ),
-            WeatherAlert(
-                id = "alert_kelani_minor_flood",
-                title = "Amber Flood Warning: Kelani Ganga & Gurugoda Oya (Holombuwa / Hanwella / Colombo)",
-                issuingAgency = "Disaster Management Centre (DMC) & RiverWatch.LK",
-                district = "Colombo",
-                riverBasin = "Kelani Ganga (RB 01)",
-                severity = AlertSeverity.MAJOR_AMBER,
-                summary = "Kelani Ganga at Nagalagam Street (1.92m), Hanwella (8.45m), Glencorse (16.80m), and Gurugoda Oya at Holombuwa (3.58m) have exceeded Minor Flood thresholds.",
-                recommendedActions = listOf(
-                    "Residents along Kelanimulla, Wellampitiya, Kolonnawa, Biyagama, Kaduwela, Avissawella, and Ruwanwella prepare emergency kits.",
-                    "Move vehicles and livestock to designated high-ground shelters.",
-                    "Monitor hourly Nagalagam Street and Hanwella gauge updates in the Rivers tab."
-                ),
-                issuedTimeText = "Issued 40 mins ago",
-                validUntilText = "Valid for next 18 hours",
-                rainfallMm24h = maxOf(164.0, report.rain24hMm),
-                windGustKmh = maxOf(48.0, report.windGustKmh)
-            ),
-            WeatherAlert(
-                id = "alert_maha_attanagalu",
-                title = "Amber Flood Watch: Maha Oya (Badalgama / Giriulla) & Attanagalu Oya (Dunamale)",
-                issuingAgency = "Department of Irrigation • RiverWatch.LK",
-                district = "Gampaha",
-                riverBasin = "Maha Oya (RB 102) & Attanagalu Oya (RB 103)",
-                severity = AlertSeverity.MAJOR_AMBER,
-                summary = "Badalgama on Maha Oya (6.42m) and Dunamale on Attanagalu Oya (4.62m) have surpassed Minor Flood levels, while Giriulla (5.85m) is in Alert stage.",
-                recommendedActions = listOf(
-                    "Low-lying areas in Gampaha, Ja-Ela, Minuwangoda, Badalgama, Dankotuwa, Pannala, and Alawwa should remain on flood standby.",
-                    "Avoid crossing riverside causeways in Gampaha and Kurunegala districts."
-                ),
-                issuedTimeText = "Issued 50 mins ago",
-                validUntilText = "Valid for next 18 hours",
-                rainfallMm24h = 152.0,
-                windGustKmh = 46.0
-            ),
-            WeatherAlert(
-                id = "alert_nbro_landslide",
-                title = "NBRO Level 3 Red Landslide Evacuation Warning",
-                issuingAgency = "National Building Research Organisation (NBRO)",
-                district = "Kandy",
-                riverBasin = "Central Highlands & Sabaragamuwa",
-                severity = AlertSeverity.CRITICAL_RED,
-                summary = "Soil saturation has surpassed 150mm/24h across Ratnapura, Kegalle (Kitulgala/Deraniyagala), Kalutara (Bulathsinhala), Kandy (Nawalapitiya/Gampola), and Nuwara Eliya slopes.",
-                recommendedActions = listOf(
-                    "Watch for sudden muddy water seepage, tilting trees, or new cracks on walls and hillside floors.",
-                    "Evacuate immediately to safe centres if situated near steep cut slopes in Ratnapura, Kegalle, Kandy, Nuwara Eliya, or Badulla.",
-                    "Avoid night-time travel along Kandy–Colombo (Kadugannawa) and Hatton–Nuwara Eliya mountain roads."
-                ),
-                issuedTimeText = "Issued 1 hour ago",
-                validUntilText = "Valid for next 24 hours",
-                rainfallMm24h = 178.0,
-                windGustKmh = 58.0
-            ),
-            WeatherAlert(
-                id = "alert_southern_basins",
-                title = "Amber Flood Watch: Gin Ganga (Baddegama / Tawalama) & Nilwala (Panadugama)",
-                issuingAgency = "Department of Irrigation • Southern Range",
-                district = "Galle",
-                riverBasin = "Gin Ganga (RB 09) & Nilwala (RB 12)",
-                severity = AlertSeverity.MAJOR_AMBER,
-                summary = "Baddegama (4.18m), Tawalama (6.35m) on Gin Ganga and Panadugama (6.24m) on Nilwala Ganga have surpassed Minor Flood levels.",
-                recommendedActions = listOf(
-                    "Avoid using minor rural roads adjacent to Baddegama, Tawalama, Neluwa, Akuressa, and Malimbada floodplains.",
-                    "Keep drinking water and essential medications sealed in waterproof containers."
-                ),
-                issuedTimeText = "Issued 1 hour ago",
-                validUntilText = "Valid for next 12 hours",
-                rainfallMm24h = 168.0,
-                windGustKmh = 52.0
-            )
-        )
-
-        val mappedNational = rawAlerts.map { alert ->
-            val matches = alert.district.equals(selectedRegion.name, ignoreCase = true) ||
-                (alert.riverBasin != null && selectedRegion.primaryRiverBasin.contains(
-                    alert.riverBasin.take(10),
-                    ignoreCase = true
-                )) ||
-                (selectedRegion.isLandslideProne && alert.id == "alert_nbro_landslide")
-            alert.copy(isUserDistrictMatch = matches)
-        }.sortedWith(
-            compareByDescending<WeatherAlert> { it.isUserDistrictMatch }
-                .thenByDescending { it.severity.priority }
-        )
-
-        return listOf(localCustomAlert) + mappedNational
-    }
-
-    fun getRadarFrames(): List<RadarFrame> {
-        val offsets = listOf(-90, -60, -30, 0, 20, 40, 60)
-        return offsets.mapIndexed { idx, mins ->
-            val drift = idx * 0.032f
-            val label = when {
-                mins < 0 -> "${mins}m Past"
-                mins == 0 -> "LIVE DOPPLER"
-                else -> "+${mins}m Nowcast"
-            }
-            RadarFrame(
-                index = idx,
-                timeOffsetMinutes = mins,
-                label = label,
-                isNowcastForecast = mins > 0,
-                peakDbz = 56 + (idx % 3),
-                activeCells = listOf(
-                    RadarStormCell(
-                        id = "cell_sabaragamuwa",
-                        centerX = (0.32f + drift).coerceAtMost(0.68f),
-                        centerY = (0.76f - drift * 0.4f).coerceIn(0.55f, 0.85f),
-                        radiusX = 0.22f,
-                        radiusY = 0.16f,
-                        intensityDbz = 56,
-                        movementDeg = 62f,
-                        label = "Heavy Convective Core (Ratnapura / Kalutara)"
-                    ),
-                    RadarStormCell(
-                        id = "cell_colombo_kelani",
-                        centerX = (0.22f + drift * 0.85f).coerceAtMost(0.58f),
-                        centerY = (0.69f - drift * 0.3f).coerceIn(0.50f, 0.80f),
-                        radiusX = 0.19f,
-                        radiusY = 0.14f,
-                        intensityDbz = 49,
-                        movementDeg = 58f,
-                        label = "Kelani & Maha Oya Squall Line"
-                    ),
-                    RadarStormCell(
-                        id = "cell_southern_galle",
-                        centerX = (0.35f + drift * 0.9f).coerceAtMost(0.65f),
-                        centerY = (0.89f - drift * 0.25f).coerceIn(0.75f, 0.95f),
-                        radiusX = 0.18f,
-                        radiusY = 0.12f,
-                        intensityDbz = 46,
-                        movementDeg = 65f,
-                        label = "Southern Coastal Band (Gin / Nilwala)"
-                    ),
-                    RadarStormCell(
-                        id = "cell_central_hills",
-                        centerX = (0.48f + drift * 0.6f).coerceAtMost(0.72f),
-                        centerY = (0.63f - drift * 0.2f).coerceIn(0.48f, 0.72f),
-                        radiusX = 0.17f,
-                        radiusY = 0.15f,
-                        intensityDbz = 42,
-                        movementDeg = 55f,
-                        label = "Central Highland Orographic Rain"
-                    ),
-                    RadarStormCell(
-                        id = "cell_ncp_band",
-                        centerX = (0.42f + drift * 0.5f).coerceAtMost(0.70f),
-                        centerY = (0.40f - drift * 0.15f).coerceIn(0.28f, 0.50f),
-                        radiusX = 0.15f,
-                        radiusY = 0.11f,
-                        intensityDbz = 31,
-                        movementDeg = 50f,
-                        label = "North-Central Rain Shield (Malwathu / Yan Oya)"
-                    )
-                )
-            )
-        }
-    }
-
-    fun getEmergencyShelters(): List<EmergencyShelter> = listOf(
-        EmergencyShelter(
-            id = "shelter_colombo_1",
-            name = "Kelaniya Raja Maha Vihara High-Ground Relief Center",
-            district = "Colombo",
-            elevationMeters = 34,
-            capacityPeople = 850,
-            contactPhone = "0112674500",
-            distanceKmText = "2.4 km from Kelani Floodplain",
-            facilities = listOf("Medical First Aid", "Clean Water", "Generator Power", "Infant Supplies")
-        ),
-        EmergencyShelter(
-            id = "shelter_colombo_2",
-            name = "Kaduwela Bomiriya Central College Relief Camp",
-            district = "Colombo",
-            elevationMeters = 42,
-            capacityPeople = 1200,
-            contactPhone = "0112571117",
-            distanceKmText = "1.8 km from Hanwella Corridor",
-            facilities = listOf("DMC Command Desk", "Hot Meals", "Boat Rescue Dispatch")
-        ),
-        EmergencyShelter(
-            id = "shelter_gampaha_1",
-            name = "Gampaha Bandaranayake College Safe Center",
-            district = "Gampaha",
-            elevationMeters = 38,
-            capacityPeople = 950,
-            contactPhone = "0332222117",
-            distanceKmText = "1.6 km from Attanagalu Oya Basin",
-            facilities = listOf("DMC Desk", "Clean Water", "Medical Triage")
-        ),
-        EmergencyShelter(
-            id = "shelter_ratnapura_1",
-            name = "Ferguson High School Elevated Safety Center",
-            district = "Ratnapura",
-            elevationMeters = 185,
-            capacityPeople = 1100,
-            contactPhone = "0452222117",
-            distanceKmText = "1.5 km above Kalu Ganga Town Gauge",
-            facilities = listOf("NBRO Geotech Team", "Medical Triage", "Dry Rations", "Blankets")
-        ),
-        EmergencyShelter(
-            id = "shelter_kegalle_1",
-            name = "Kegalle St. Mary's College High-Ground Shelter",
-            district = "Kegalle",
-            elevationMeters = 220,
-            capacityPeople = 800,
-            contactPhone = "0352222117",
-            distanceKmText = "Safe Ridge above Gurugoda & Kelani",
-            facilities = listOf("NBRO Landslide Desk", "First Aid", "Hot Meals")
-        ),
-        EmergencyShelter(
-            id = "shelter_kalutara_1",
-            name = "Kalutara Tissa Central College Safe Center",
-            district = "Kalutara",
-            elevationMeters = 38,
-            capacityPeople = 900,
-            contactPhone = "0342222117",
-            distanceKmText = "2.1 km from Putupaula Basin",
-            facilities = listOf("Navy Rescue Unit", "Medical Aid", "Drinking Water")
-        ),
-        EmergencyShelter(
-            id = "shelter_galle_1",
-            name = "Baddegama Christ Church Boys' College Shelter",
-            district = "Galle",
-            elevationMeters = 46,
-            capacityPeople = 750,
-            contactPhone = "0912292117",
-            distanceKmText = "1.2 km from Gin Ganga Floodplain",
-            facilities = listOf("Emergency Boats", "First Aid", "Sanitation")
-        ),
-        EmergencyShelter(
-            id = "shelter_matara_1",
-            name = "Akuressa Godapitiya Central College Relief Camp",
-            district = "Matara",
-            elevationMeters = 52,
-            capacityPeople = 820,
-            contactPhone = "0412222117",
-            distanceKmText = "1.4 km above Panadugama Nilwala Gauge",
-            facilities = listOf("Boat Rescue", "Medical Team", "Dry Rations")
-        ),
-        EmergencyShelter(
-            id = "shelter_kandy_1",
-            name = "Peradeniya Central School Landslide Safe Shelter",
-            district = "Kandy",
-            elevationMeters = 545,
-            capacityPeople = 650,
-            contactPhone = "0812222117",
-            distanceKmText = "Safe Ridge Zone • Certified by NBRO",
-            facilities = listOf("Landslide Monitoring", "Medical Team", "Hot Meals")
-        )
-    )
-
-    fun getInitialChecklist(): List<SafetyChecklistItem> = listOf(
-        SafetyChecklistItem(
-            id = "chk_documents",
-            title = "Seal NIC, Passports, Land Deeds & Bank Books",
-            detail = "Place critical identity and property documents in zip-locked waterproof bags.",
-            category = "Essential Documents",
-            isChecked = true
-        ),
-        SafetyChecklistItem(
-            id = "chk_power_water",
-            title = "Store 72 Hours of Boiled Drinking Water & Dry Rations",
-            detail = "Floodwaters contaminate wells and pipe supplies; keep 3L per person per day.",
-            category = "Water & Nutrition",
-            isChecked = false
-        ),
-        SafetyChecklistItem(
-            id = "chk_electricity",
-            title = "Locate Main CEB/LECO Trip Switch & Gas Cylinder Valve",
-            detail = "Switch off main electrical breaker and unplug appliances if water approaches floor level.",
-            category = "Home Electrical Safety",
-            isChecked = false
-        ),
-        SafetyChecklistItem(
-            id = "chk_landslide_signs",
-            title = "Inspect Slopes for Muddy Springs or Wall Cracks",
-            detail = "In NBRO alert districts (Ratnapura, Kegalle, Kandy, Kalutara, Nuwara Eliya, Badulla), evacuate immediately if ground cracks appear.",
-            category = "NBRO Landslide Watch",
-            isChecked = false
-        ),
-        SafetyChecklistItem(
-            id = "chk_comms",
-            title = "Charge Power Banks & Save DMC 117 / Suwa Seriya 1990",
-            detail = "Keep mobile devices above 80% charge and enable battery-saver mode during heavy squalls.",
-            category = "Emergency Comms",
-            isChecked = true
-        )
-    )
-
-    private fun computeActivitySafety(
-        region: SriLankaRegion,
-        rain24hMm: Double,
-        windGustKmh: Double
-    ): List<ActivitySafetyAssessment> {
-        val roadStatus = when {
-            rain24hMm >= 100.0 -> Triple("HIGH RISK", AlertRed, 28)
-            rain24hMm >= 45.0 -> Triple("CAUTION", WarningAmber, 58)
-            else -> Triple("SAFE", SafeEmerald, 88)
-        }
-        val marineStatus = when {
-            windGustKmh >= 55.0 || (region.isCoastalZone && rain24hMm >= 60.0) ->
-                Triple("SUSPEND SAILING", AlertRed, 18)
-            windGustKmh >= 38.0 -> Triple("SMALL CRAFT WARNING", WarningAmber, 52)
-            else -> Triple("FAVORABLE", SafeEmerald, 85)
-        }
-        val slopeStatus = when {
-            region.isLandslideProne && rain24hMm >= 75.0 ->
-                Triple("NBRO RED RISK", AlertRed, 22)
-            region.isLandslideProne && rain24hMm >= 35.0 ->
-                Triple("SLOPE WATCH", WarningAmber, 55)
-            else -> Triple("STABLE", SafeEmerald, 90)
-        }
-        val agriStatus = when {
-            rain24hMm >= 80.0 -> Triple("FLOOD DRAINAGE ALERT", WarningAmber, 42)
-            rain24hMm >= 30.0 -> Triple("DELAY FERTILIZER", AdvisoryYellow, 66)
-            else -> Triple("OPTIMAL", SafeEmerald, 89)
-        }
-
-        return listOf(
-            ActivitySafetyAssessment(
-                activityName = "Expressway & Low-Lying Road Travel",
-                category = "Transport",
-                statusLabel = roadStatus.first,
-                statusColor = roadStatus.second,
-                recommendation = if (rain24hMm >= 80.0) {
-                    "Avoid flood-prone underpasses & riverside roads in ${region.name}. Reduce speed to 60 km/h on E01/E04 expressways."
-                } else {
-                    "Main highways open; watch for localized surface water during afternoon showers."
-                },
-                safetyScore = roadStatus.third
-            ),
-            ActivitySafetyAssessment(
-                activityName = "Coastal Fishing & Naval Operations",
-                category = "Marine & Fisheries",
-                statusLabel = marineStatus.first,
-                statusColor = marineStatus.second,
-                recommendation = if (windGustKmh >= 45.0) {
-                    "Gusts up to ${windGustKmh.roundToInt()} km/h with rough swell (2.5m–3.5m). Multi-day & day boats advised to remain in harbor."
-                } else {
-                    "Moderate sea state; carry VHF radio and life jackets."
-                },
-                safetyScore = marineStatus.third
-            ),
-            ActivitySafetyAssessment(
-                activityName = "Hill Country & Tea Estate Operations",
-                category = "Highlands / NBRO",
-                statusLabel = slopeStatus.first,
-                statusColor = slopeStatus.second,
-                recommendation = if (region.isLandslideProne) {
-                    "High soil moisture in ${region.name} (${region.elevationMeters}m). Suspend excavation and monitor cut slopes."
-                } else {
-                    "Low terrain slope gradient in ${region.name}; watch for urban flash drainage instead."
-                },
-                safetyScore = slopeStatus.third
-            ),
-            ActivitySafetyAssessment(
-                activityName = "Paddy Cultivation & Outdoor Works",
-                category = "Agriculture",
-                statusLabel = agriStatus.first,
-                statusColor = agriStatus.second,
-                recommendation = "Clear paddy spillway bunds (Wakada) in ${region.primaryRiverBasin} catchment and pause outdoor crane/scaffolding work during lightning.",
-                safetyScore = agriStatus.third
-            )
-        )
-    }
 
     private fun describeWmoCode(code: Int, rainMm: Double): String = when {
         code >= 95 || rainMm >= 120.0 -> "Heavy Monsoon Thunderstorms & Squalls"
@@ -2165,7 +1760,6 @@ class SriLankaWeatherRepository {
             pressureHpa = 1006.8,
             hourly = fallbackHourly(region),
             daily = daily,
-            activityAssessments = computeActivitySafety(region, todayRain, maxGust),
             isLiveApiData = false,
             syncedTimestamp = "Offline estimate • no connection at $timestamp"
         )

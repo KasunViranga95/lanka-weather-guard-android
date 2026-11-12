@@ -1,22 +1,41 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Lanka Weather Guard
 
-# Run and deploy your AI Studio app
+An Android weather and flood app for Sri Lanka, in English, Sinhala and Tamil.
 
-This contains everything you need to run your app locally.
+- **Weather:** current conditions, a 24-hour and 7-day forecast, wind, humidity, UV index, and sunrise and sunset for any town.
+- **Rivers:** live water levels from the Irrigation Department's river gauges, compared against each gauge's alert and flood levels.
+- **Alerts:** worked out from those river levels and the forecast (heavy rain, strong wind, thunderstorms, landslide risk on hill slopes, heat). They are sent as notifications in the background, about every 30 minutes.
+- **Saved places:** follow up to six towns; alerts cover all of them.
+- **Home-screen widget:** temperature, rain outlook and the nearest river.
+- **Works offline:** shows the last forecast and river readings saved on the phone.
+- **Map:** Windy.com live map (rain, radar, clouds, wind, temperature).
+- **Safety:** emergency numbers, a flood checklist and links to official warnings.
 
-View your app in AI Studio: https://ai.studio/apps/ae7f339a-96d4-4352-881a-cb2740bbb60f
+Data comes from Open-Meteo, the Sri Lanka Irrigation Department and Windy.com. Alerts are calculated by the app and are not official warnings.
 
-## Run Locally
+## Build
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+1. Open the project in Android Studio and run the `app` configuration.
+2. The debug build is signed with `debug.keystore` in the project root (not committed). Copy `~/.android/debug.keystore` there if it is missing.
 
+## AI helper (optional)
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
-7. If you have already published your app in AI Studio, please [request upload key reset](https://support.google.com/googleplay/android-developer/answer/9842756#zippy=%2Crequest-an-upload-key-reset) in Google Play Console.
+The ⋮ menu shows **Ask about the weather** once `AI_PROXY_URL` is set in `.env`. See [server/ai-proxy/README.md](server/ai-proxy/README.md). The Gemini key stays on that server and is never put into the app.
+
+## Translations
+
+All text lives in [tools/strings_table.py](tools/strings_table.py), with English, Sinhala and Tamil side by side. After editing it, run:
+
+```bash
+python3 tools/strings_table.py
+```
+
+This regenerates `values/`, `values-si/` and `values-ta/strings.xml`. Have a native speaker review new Sinhala and Tamil text before release.
+
+## Releasing on Google Play
+
+- **App ID:** `io.github.kasunviranga95.lankaweatherguard`. It cannot change after the first upload.
+- **Privacy policy:** [docs/PRIVACY.md](docs/PRIVACY.md). Use its GitHub address in the Play Console.
+- **Signing:** create an upload key and set `KEYSTORE_PATH`, `STORE_PASSWORD` and `KEY_PASSWORD` for the `release` signing config.
+- **Version:** increase `versionCode` in `app/build.gradle.kts` for every upload.
+- **Data safety form:** approximate location (optional, used on the phone only), no data collected or shared for ads or analytics, AI helper questions sent to Google Gemini through your proxy.

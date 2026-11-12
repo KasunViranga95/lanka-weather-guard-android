@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Dehaze
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -45,7 +45,6 @@ import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.WbCloudy
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.filled.WbTwilight
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -55,6 +54,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -69,12 +69,15 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.model.AlertSeverity
 import com.example.model.DailyForecastItem
 import com.example.model.FloodStatus
@@ -90,6 +93,7 @@ import com.example.ui.theme.AdaptivePrimaryText
 import com.example.ui.theme.AdaptiveSecondaryText
 import com.example.ui.theme.AdaptiveSurfaceColor
 import com.example.ui.theme.AlertRed
+import com.example.util.WeatherFormat
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -115,66 +119,12 @@ fun weatherTintFor(code: Int, isDay: Boolean = true): Color = when (code) {
     else -> Color(0xFF9AA0A6)
 }
 
-/** Short, friendly condition text for a WMO weather code. */
-fun weatherLabelFor(code: Int): String = when (code) {
-    0 -> "Clear"
-    1 -> "Mostly clear"
-    2 -> "Partly cloudy"
-    3 -> "Cloudy"
-    45, 48 -> "Foggy"
-    in 51..55 -> "Drizzle"
-    56, 57 -> "Freezing drizzle"
-    61 -> "Light rain"
-    63 -> "Rain"
-    65 -> "Heavy rain"
-    66, 67 -> "Freezing rain"
-    80 -> "Light showers"
-    81 -> "Showers"
-    82 -> "Violent showers"
-    95 -> "Thunderstorms"
-    96, 99 -> "Thunderstorms with hail"
-    else -> "Mixed conditions"
-}
-
-/** Plain-language river state shown to people (instead of technical gauge terms). */
-fun FloodStatus.friendlyLabel(): String = when (this) {
-    FloodStatus.NORMAL -> "Normal"
-    FloodStatus.ALERT -> "Watch – near alert level"
-    FloodStatus.MINOR_FLOOD -> "Minor flooding"
-    FloodStatus.MAJOR_FLOOD -> "Major flooding"
-}
+private val RainBlue = Color(0xFF4285F4)
 
 private fun formatTemp(value: Double) = "${value.roundToInt()}°"
 
-/** "15:00" -> "3 PM", "06:04" -> "6:04 AM". */
-fun to12Hour(hhmm: String): String {
-    val h = hhmm.substringBefore(":").toIntOrNull() ?: return hhmm
-    val m = hhmm.substringAfter(":", "00").take(2)
-    val suffix = if (h < 12) "AM" else "PM"
-    val h12 = if (h % 12 == 0) 12 else h % 12
-    return if (m == "00") "$h12 $suffix" else "$h12:$m $suffix"
-}
-
-private fun compassPoint(deg: Int): String =
-    listOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")[(((deg % 360) + 382.5) / 45).toInt() % 8]
-
-private fun uvLevel(uv: Double): String = when {
-    uv < 3 -> "Low"
-    uv < 6 -> "Moderate"
-    uv < 8 -> "High"
-    uv < 11 -> "Very high"
-    else -> "Extreme"
-}
-
-/** One sentence about rain for the rest of the day, built from the hourly forecast. */
-private fun rainOutlook(report: RegionalWeatherReport): String {
-    val now = report.hourly.firstOrNull()
-    if (now != null && now.rainProbability >= 60 && report.weatherCode >= 51) return "Rain now – it may continue for a while."
-    val firstWet = report.hourly.drop(1).take(12).firstOrNull { it.rainProbability >= 60 }
-    if (firstWet != null) return "Rain likely from around ${to12Hour(firstWet.timeLabel)}."
-    val chance = report.daily.firstOrNull()?.maxRainProb ?: 0
-    return if (chance < 30) "No rain expected in the next 12 hours." else "A few showers possible today ($chance% chance)."
-}
+@Composable
+private fun res() = LocalContext.current.resources
 
 /**
  * Top of the Weather screen: big temperature, condition, high/low and a one-line rain outlook.
@@ -189,6 +139,7 @@ fun CurrentConditionsHeader(
 ) {
     val hasLiveData = report.isLiveApiData
     val today = report.daily.firstOrNull()
+    val res = res()
 
     Column(
         modifier = modifier
@@ -197,7 +148,11 @@ fun CurrentConditionsHeader(
             .testTag("home_current_conditions"),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        Text("Now", style = MaterialTheme.typography.titleSmall, color = AdaptiveSecondaryText)
+        if (report.isFromCache && hasLiveData) {
+            OfflineChip(report.fetchedAtMillis)
+            Spacer(Modifier.height(6.dp))
+        }
+        Text(stringResource(R.string.now), style = MaterialTheme.typography.titleSmall, color = AdaptiveSecondaryText)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = if (hasLiveData) formatTemp(report.currentTempC) else "--°",
@@ -215,18 +170,19 @@ fun CurrentConditionsHeader(
             )
             Spacer(Modifier.weight(1f))
             if (hasLiveData) {
-                Column(horizontalAlignment = Alignment.End) {
+                Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 8.dp)) {
                     Text(
-                        text = weatherLabelFor(report.weatherCode),
+                        text = stringResource(WeatherFormat.conditionRes(report.weatherCode)),
                         style = MaterialTheme.typography.titleMedium,
                         color = AdaptivePrimaryText,
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.End
                     )
                     Text(
-                        text = "Feels like ${formatTemp(report.feelsLikeC)}",
+                        text = stringResource(R.string.feels_like, formatTemp(report.feelsLikeC)),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = AdaptiveSecondaryText
+                        color = AdaptiveSecondaryText,
+                        textAlign = TextAlign.End
                     )
                 }
             }
@@ -234,20 +190,41 @@ fun CurrentConditionsHeader(
         if (hasLiveData) {
             if (today != null) {
                 Text(
-                    text = "High ${formatTemp(today.maxTempC)} · Low ${formatTemp(today.minTempC)}",
+                    text = stringResource(R.string.high_low, formatTemp(today.maxTempC), formatTemp(today.minTempC)),
                     style = MaterialTheme.typography.bodyLarge,
                     color = AdaptivePrimaryText
                 )
             }
             Spacer(Modifier.height(4.dp))
-            Text(rainOutlook(report), style = MaterialTheme.typography.bodyMedium, color = AdaptiveSecondaryText)
+            Text(WeatherFormat.rainOutlook(res, report), style = MaterialTheme.typography.bodyMedium, color = AdaptiveSecondaryText)
         } else {
             Text(
-                text = if (isSyncing) "Getting the latest weather for $cityName…" else "No connection – pull down to try again",
+                text = if (isSyncing) stringResource(R.string.loading_weather_for, cityName) else stringResource(R.string.no_connection_pull),
                 style = MaterialTheme.typography.bodyMedium,
                 color = AdaptiveSecondaryText
             )
         }
+    }
+}
+
+/** Small "Offline · saved at 4:07 PM" label shown when the network failed and saved data is on screen. */
+@Composable
+private fun OfflineChip(savedAtMillis: Long) {
+    val res = res()
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(AdaptiveElevatedColor)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Icon(Icons.Filled.CloudOff, contentDescription = null, tint = AdaptiveSecondaryText, modifier = Modifier.size(14.dp))
+        Text(
+            text = stringResource(R.string.offline_saved_at, WeatherFormat.time(res, savedAtMillis)),
+            style = MaterialTheme.typography.labelMedium,
+            color = AdaptiveSecondaryText
+        )
     }
 }
 
@@ -259,14 +236,12 @@ fun CurrentConditionsHeader(
 @Composable
 fun AlertBanner(
     alerts: List<WeatherAlert>,
-    onNotifyMe: () -> Unit,
+    alertsEnabled: Boolean,
+    onAlertsEnabledChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (alerts.isEmpty()) return
-    val sorted = remember(alerts) {
-        alerts.sortedWith(compareByDescending<WeatherAlert> { it.isUserDistrictMatch }.thenByDescending { it.severity.priority })
-    }
-    val top = sorted.first()
+    val top = alerts.first()
     val color = top.severity.badgeColor
     var showSheet by remember { mutableStateOf(false) }
 
@@ -293,14 +268,15 @@ fun AlertBanner(
             )
             Text(
                 text = buildString {
-                    append("${top.severity.shortLabel()} · ${top.district}")
-                    if (sorted.size > 1) append(" · +${sorted.size - 1} more")
+                    append(stringResource(top.severity.shortLabelRes()))
+                    append(" · ").append(top.district)
+                    if (alerts.size > 1) append(" · ").append(stringResource(R.string.n_more, alerts.size - 1))
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = AdaptiveSecondaryText
             )
         }
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "See all alerts", tint = AdaptiveSecondaryText)
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = stringResource(R.string.see_all_alerts), tint = AdaptiveSecondaryText)
     }
 
     if (showSheet) {
@@ -309,13 +285,17 @@ fun AlertBanner(
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = AdaptiveSurfaceColor
         ) {
-            AlertsSheetContent(sorted, onNotifyMe)
+            AlertsSheetContent(alerts, alertsEnabled, onAlertsEnabledChange)
         }
     }
 }
 
 @Composable
-private fun AlertsSheetContent(alerts: List<WeatherAlert>, onNotifyMe: () -> Unit) {
+private fun AlertsSheetContent(
+    alerts: List<WeatherAlert>,
+    alertsEnabled: Boolean,
+    onAlertsEnabledChange: (Boolean) -> Unit
+) {
     var openId by remember { mutableStateOf(alerts.firstOrNull()?.id) }
     Column(
         modifier = Modifier
@@ -327,7 +307,7 @@ private fun AlertsSheetContent(alerts: List<WeatherAlert>, onNotifyMe: () -> Uni
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "Weather alerts (${alerts.size})",
+            text = stringResource(R.string.weather_alerts_count, alerts.size),
             style = MaterialTheme.typography.titleLarge,
             color = AdaptivePrimaryText,
             fontWeight = FontWeight.SemiBold
@@ -361,81 +341,83 @@ private fun AlertsSheetContent(alerts: List<WeatherAlert>, onNotifyMe: () -> Uni
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${alert.severity.shortLabel()} · ${alert.district}",
+                            text = "${stringResource(alert.severity.shortLabelRes())} · ${alert.district}",
                             style = MaterialTheme.typography.bodySmall,
                             color = AdaptiveSecondaryText
                         )
                     }
                     Icon(
                         imageVector = if (open) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = if (open) "Hide details" else "Show details",
+                        contentDescription = stringResource(if (open) R.string.hide_details else R.string.show_details),
                         tint = AdaptiveSecondaryText
                     )
                 }
                 if (open) {
                     Text(alert.summary, style = MaterialTheme.typography.bodyMedium, color = AdaptivePrimaryText)
-                    alert.recommendedActions.take(3).forEach { action ->
+                    alert.recommendedActions.forEach { action ->
                         Text("• $action", style = MaterialTheme.typography.bodyMedium, color = AdaptiveSecondaryText)
                     }
                     Text(
-                        text = "${alert.issuingAgency} · ${alert.issuedTimeText}",
+                        text = listOf(alert.issuingAgency, alert.issuedTimeText).filter { it.isNotBlank() }.joinToString(" · "),
                         style = MaterialTheme.typography.labelSmall,
                         color = AdaptiveSecondaryText
                     )
                 }
             }
         }
-        Spacer(Modifier.height(4.dp))
-        Button(onClick = onNotifyMe, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Filled.NotificationsActive, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Send me a notification for my area")
+        HorizontalDivider(color = AdaptiveBorderColor)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(Icons.Filled.NotificationsActive, contentDescription = null, tint = AdaptiveCyanAccent)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.alert_notifications), style = MaterialTheme.typography.bodyLarge, color = AdaptivePrimaryText)
+                Text(stringResource(R.string.alert_notifications_summary), style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
+            }
+            Switch(checked = alertsEnabled, onCheckedChange = onAlertsEnabledChange)
         }
+        Text(
+            text = stringResource(R.string.alerts_disclaimer),
+            style = MaterialTheme.typography.labelSmall,
+            color = AdaptiveSecondaryText
+        )
     }
 }
 
-private fun AlertSeverity.shortLabel(): String = when (this) {
-    AlertSeverity.CRITICAL_RED -> "Severe"
-    AlertSeverity.MAJOR_AMBER -> "Warning"
-    AlertSeverity.ADVISORY_YELLOW -> "Advisory"
-    AlertSeverity.SAFE_GREEN -> "Info"
+fun AlertSeverity.shortLabelRes(): Int = when (this) {
+    AlertSeverity.CRITICAL_RED -> R.string.severity_severe
+    AlertSeverity.MAJOR_AMBER -> R.string.severity_warning
+    AlertSeverity.ADVISORY_YELLOW -> R.string.severity_advisory
+    AlertSeverity.SAFE_GREEN -> R.string.severity_info
 }
 
 /** Hourly row: temperature, icon, chance of rain and time for the next 24 hours. */
 @Composable
 fun HourlyForecastStrip(hourly: List<HourlyForecastItem>, isLive: Boolean, modifier: Modifier = Modifier) {
-    SectionCard(title = "Hourly forecast", modifier = modifier.testTag("home_hourly_card")) {
+    val res = res()
+    SectionCard(title = stringResource(R.string.hourly_forecast), modifier = modifier.testTag("home_hourly_card")) {
         if (!isLive || hourly.isEmpty()) {
             Text(
-                text = "The hourly forecast will appear once the latest weather loads.",
+                text = stringResource(R.string.hourly_will_appear),
                 style = MaterialTheme.typography.bodyMedium,
                 color = AdaptiveSecondaryText
             )
         } else {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                contentPadding = PaddingValues(horizontal = 0.dp)
-            ) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 itemsIndexed(hourly) { idx, hour ->
                     Column(
-                        modifier = Modifier.width(56.dp),
+                        modifier = Modifier.width(60.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = formatTemp(hour.tempC),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = AdaptivePrimaryText
-                        )
+                        Text(text = formatTemp(hour.tempC), style = MaterialTheme.typography.titleMedium, color = AdaptivePrimaryText)
                         Icon(
                             imageVector = weatherIconFor(hour.weatherCode, hour.isDay),
-                            contentDescription = weatherLabelFor(hour.weatherCode),
+                            contentDescription = stringResource(WeatherFormat.conditionRes(hour.weatherCode)),
                             tint = weatherTintFor(hour.weatherCode, hour.isDay),
                             modifier = Modifier.size(28.dp)
                         )
                         RainChance(hour.rainProbability)
                         Text(
-                            text = if (idx == 0) "Now" else to12Hour(hour.timeLabel),
+                            text = if (idx == 0) stringResource(R.string.now) else WeatherFormat.hour(res, hour.timeLabel),
                             style = MaterialTheme.typography.labelMedium,
                             color = AdaptiveSecondaryText,
                             maxLines = 1
@@ -456,8 +438,8 @@ private fun RainChance(percent: Int, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         if (percent >= 10) {
-            Icon(Icons.Filled.WaterDrop, contentDescription = null, tint = Color(0xFF4285F4), modifier = Modifier.size(12.dp))
-            Text("$percent%", style = MaterialTheme.typography.labelMedium, color = Color(0xFF4285F4))
+            Icon(Icons.Filled.WaterDrop, contentDescription = null, tint = RainBlue, modifier = Modifier.size(12.dp))
+            Text("$percent%", style = MaterialTheme.typography.labelMedium, color = RainBlue)
         }
     }
 }
@@ -465,18 +447,19 @@ private fun RainChance(percent: Int, modifier: Modifier = Modifier) {
 /** One row per day: name, chance of rain, icon and high/low – the classic weather-app list. */
 @Composable
 fun DailyForecastCard(daily: List<DailyForecastItem>, modifier: Modifier = Modifier) {
-    SectionCard(title = "${daily.size}-day forecast", modifier = modifier.testTag("home_daily_card")) {
+    val res = res()
+    SectionCard(title = stringResource(R.string.n_day_forecast, daily.size), modifier = modifier.testTag("home_daily_card")) {
         daily.forEachIndexed { idx, day ->
             if (idx > 0) HorizontalDivider(color = AdaptiveBorderColor)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 2.dp)
-                    .testTag("forecast_day_${day.dayLabel}"),
+                    .testTag("forecast_day_$idx"),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = day.dayLabel,
+                    text = WeatherFormat.dayName(res, idx, day.dateLabel),
                     style = MaterialTheme.typography.bodyLarge,
                     color = AdaptivePrimaryText,
                     modifier = Modifier.weight(1f),
@@ -485,7 +468,7 @@ fun DailyForecastCard(daily: List<DailyForecastItem>, modifier: Modifier = Modif
                 RainChance(day.maxRainProb, Modifier.width(56.dp))
                 Icon(
                     imageVector = weatherIconFor(day.weatherCode),
-                    contentDescription = day.weatherSummary,
+                    contentDescription = stringResource(WeatherFormat.conditionRes(day.weatherCode)),
                     tint = weatherTintFor(day.weatherCode),
                     modifier = Modifier.size(28.dp)
                 )
@@ -504,9 +487,10 @@ fun DailyForecastCard(daily: List<DailyForecastItem>, modifier: Modifier = Modif
 /** 2×2 grid of today's details: wind, humidity, UV and sunrise/sunset. */
 @Composable
 fun ConditionsGrid(report: RegionalWeatherReport, modifier: Modifier = Modifier) {
+    val res = res()
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            text = "Current conditions",
+            text = stringResource(R.string.current_conditions),
             style = MaterialTheme.typography.titleMedium,
             color = AdaptivePrimaryText,
             fontWeight = FontWeight.SemiBold,
@@ -515,14 +499,13 @@ fun ConditionsGrid(report: RegionalWeatherReport, modifier: Modifier = Modifier)
         val live = report.isLiveApiData
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ConditionTile(
-                title = "Wind",
+                title = stringResource(R.string.wind),
                 icon = Icons.Filled.Air,
-                value = if (live) "${report.windSpeedKmh.roundToInt()} km/h" else "--",
+                value = if (live) stringResource(R.string.speed_kmh, report.windSpeedKmh.roundToInt()) else "--",
                 caption = if (live) {
-                    buildString {
-                        report.windDirectionDeg?.let { append("From ${compassPoint(it)} · ") }
-                        append("gusts ${report.windGustKmh.roundToInt()}")
-                    }
+                    report.windDirectionDeg
+                        ?.let { stringResource(R.string.wind_from_gusts, WeatherFormat.compassPoint(res, it), report.windGustKmh.roundToInt()) }
+                        ?: stringResource(R.string.gusts_n, report.windGustKmh.roundToInt())
                 } else "",
                 modifier = Modifier.weight(1f),
                 trailing = report.windDirectionDeg?.takeIf { live }?.let { deg ->
@@ -540,14 +523,14 @@ fun ConditionsGrid(report: RegionalWeatherReport, modifier: Modifier = Modifier)
                 }
             )
             ConditionTile(
-                title = "Humidity",
+                title = stringResource(R.string.humidity),
                 icon = Icons.Filled.WaterDrop,
                 value = if (live) "${report.humidityPercent}%" else "--",
                 caption = when {
                     !live -> ""
-                    report.humidityPercent >= 80 -> "Very humid"
-                    report.humidityPercent >= 60 -> "Humid"
-                    else -> "Comfortable"
+                    report.humidityPercent >= 80 -> stringResource(R.string.humidity_very_humid)
+                    report.humidityPercent >= 60 -> stringResource(R.string.humidity_humid)
+                    else -> stringResource(R.string.humidity_comfortable)
                 },
                 modifier = Modifier.weight(1f)
             )
@@ -555,20 +538,20 @@ fun ConditionsGrid(report: RegionalWeatherReport, modifier: Modifier = Modifier)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             val uv = report.uvIndex
             ConditionTile(
-                title = "UV index",
+                title = stringResource(R.string.uv_index),
                 icon = Icons.Filled.WbSunny,
                 value = if (live && uv != null) uv.roundToInt().toString() else "--",
-                caption = if (live && uv != null) uvLevel(uv) else "",
+                caption = if (live && uv != null) stringResource(WeatherFormat.uvLevelRes(uv)) else "",
                 modifier = Modifier.weight(1f),
                 footer = if (live && uv != null) {
                     { UvBar(uv) }
                 } else null
             )
             ConditionTile(
-                title = "Sunrise",
+                title = stringResource(R.string.sunrise),
                 icon = Icons.Filled.WbTwilight,
-                value = report.sunrise?.let(::to12Hour) ?: "--",
-                caption = report.sunset?.let { "Sunset ${to12Hour(it)}" } ?: "",
+                value = report.sunrise?.let { WeatherFormat.hour(res, it) } ?: "--",
+                caption = report.sunset?.let { stringResource(R.string.sunset_at, WeatherFormat.hour(res, it)) } ?: "",
                 modifier = Modifier.weight(1f)
             )
         }
@@ -595,7 +578,7 @@ private fun ConditionTile(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(icon, contentDescription = null, tint = AdaptiveSecondaryText, modifier = Modifier.size(16.dp))
-            Text(title, style = MaterialTheme.typography.labelLarge, color = AdaptiveSecondaryText)
+            Text(title, style = MaterialTheme.typography.labelLarge, color = AdaptiveSecondaryText, maxLines = 1)
         }
         Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -609,7 +592,7 @@ private fun ConditionTile(
             trailing?.invoke()
         }
         if (caption.isNotEmpty()) {
-            Text(caption, style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText, maxLines = 1)
+            Text(caption, style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText, maxLines = 2)
         }
         footer?.invoke()
     }
@@ -647,6 +630,13 @@ private fun UvBar(uv: Double) {
     }
 }
 
+@Composable
+fun trendIcon(trend: WaterTrend): ImageVector = when (trend) {
+    WaterTrend.RISING_FAST, WaterTrend.RISING -> Icons.AutoMirrored.Filled.TrendingUp
+    WaterTrend.FALLING -> Icons.AutoMirrored.Filled.TrendingDown
+    WaterTrend.STABLE -> Icons.AutoMirrored.Filled.TrendingFlat
+}
+
 /** The river gauge that matters most for the user's area, in plain language. */
 @Composable
 fun NearestRiverCard(
@@ -656,26 +646,30 @@ fun NearestRiverCard(
     modifier: Modifier = Modifier
 ) {
     SectionCard(
-        title = "River near you",
-        actionLabel = "All rivers",
+        title = stringResource(R.string.river_near_you),
+        actionLabel = stringResource(R.string.all_rivers),
         onAction = onOpenRivers,
         modifier = modifier
     ) {
         if (station == null) {
-            Text("Loading river levels…", style = MaterialTheme.typography.bodyMedium, color = AdaptiveSecondaryText)
+            Text(stringResource(R.string.loading_rivers), style = MaterialTheme.typography.bodyMedium, color = AdaptiveSecondaryText)
+            return@SectionCard
+        }
+        Text(
+            text = stringResource(R.string.river_at_station, station.riverName, station.stationName.substringBefore(" (")),
+            style = MaterialTheme.typography.bodyLarge,
+            color = AdaptivePrimaryText,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (!station.hasLiveReading) {
+            Text(stringResource(R.string.no_recent_reading), style = MaterialTheme.typography.bodyMedium, color = AdaptiveSecondaryText)
             return@SectionCard
         }
         val status = station.floodStatus
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "${station.riverName} at ${station.stationName.substringBefore(" (")}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = AdaptivePrimaryText,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         text = String.format(Locale.US, "%.2f m", station.currentLevelM),
@@ -683,22 +677,18 @@ fun NearestRiverCard(
                         color = AdaptivePrimaryText
                     )
                     Icon(
-                        imageVector = when (station.trend) {
-                            WaterTrend.RISING_FAST, WaterTrend.RISING -> Icons.AutoMirrored.Filled.TrendingUp
-                            WaterTrend.FALLING -> Icons.AutoMirrored.Filled.TrendingDown
-                            WaterTrend.STABLE -> Icons.AutoMirrored.Filled.TrendingFlat
-                        },
-                        contentDescription = station.trend.label,
+                        imageVector = trendIcon(station.trend),
+                        contentDescription = stringResource(station.trend.labelRes),
                         tint = AdaptiveSecondaryText,
                         modifier = Modifier.size(20.dp)
                     )
-                    Text(station.trend.label, style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
+                    Text(stringResource(station.trend.labelRes), style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
                 }
                 station.publishedLevelText?.let {
-                    Text("Gauge reads $it", style = MaterialTheme.typography.labelSmall, color = AdaptiveSecondaryText)
+                    Text(stringResource(R.string.gauge_reads, it), style = MaterialTheme.typography.labelSmall, color = AdaptiveSecondaryText)
                 }
             }
-            StatusPill(text = status.friendlyLabel(), color = status.color)
+            StatusPill(text = stringResource(status.labelRes), color = status.color)
         }
         LinearProgressIndicator(
             progress = { (station.currentLevelM / station.majorFloodLevelM).toFloat().coerceIn(0f, 1f) },
@@ -711,18 +701,17 @@ fun NearestRiverCard(
                 .clip(CircleShape)
         )
         Text(
-            text = String.format(
-                Locale.US,
-                "Alert at %.1f m · Major flood at %.1f m",
-                station.alertLevelM,
-                station.majorFloodLevelM
+            text = stringResource(
+                R.string.alert_and_major_levels,
+                String.format(Locale.US, "%.1f", station.alertLevelM),
+                String.format(Locale.US, "%.1f", station.majorFloodLevelM)
             ),
             style = MaterialTheme.typography.bodySmall,
             color = AdaptiveSecondaryText
         )
         if (floodingStationCount > 0) {
             Text(
-                text = "$floodingStationCount river gauge${if (floodingStationCount == 1) " is" else "s are"} at flood level across Sri Lanka",
+                text = res().getQuantityString(R.plurals.gauges_flooding, floodingStationCount, floodingStationCount),
                 style = MaterialTheme.typography.bodySmall,
                 color = AlertRed,
                 fontWeight = FontWeight.SemiBold
@@ -745,7 +734,7 @@ fun EmergencyCallButton(onCallEmergency: () -> Unit, modifier: Modifier = Modifi
     ) {
         Icon(Icons.Filled.Phone, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
-        Text("Emergency – call DMC 117", fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.emergency_call_117), fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -788,7 +777,13 @@ fun SectionCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium, color = AdaptivePrimaryText, fontWeight = FontWeight.SemiBold)
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                color = AdaptivePrimaryText,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f, fill = false)
+            )
             if (actionLabel != null) {
                 Row(
                     modifier = Modifier
@@ -810,3 +805,7 @@ fun SectionCard(
         content()
     }
 }
+
+/** Plain-language river state shown to people (instead of technical gauge terms). */
+@Composable
+fun FloodStatus.friendlyLabel(): String = stringResource(labelRes)

@@ -12,9 +12,12 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.R
 import com.example.model.FloodStatus
 import com.example.model.RegionalWeatherReport
 import com.example.model.RiverGaugeStation
@@ -27,6 +30,7 @@ import com.example.ui.components.EmergencyCallButton
 import com.example.ui.components.HourlyForecastStrip
 import com.example.ui.components.NearestRiverCard
 import com.example.ui.theme.AdaptiveSecondaryText
+import com.example.util.WeatherFormat
 
 /**
  * Weather screen, read top to bottom like a standard weather app: now, alerts, hourly, the week,
@@ -34,15 +38,16 @@ import com.example.ui.theme.AdaptiveSecondaryText
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlertsDashboardScreen(
+fun WeatherScreen(
     selectedNearestCity: String,
     alerts: List<WeatherAlert>,
+    alertsEnabled: Boolean,
+    onAlertsEnabledChange: (Boolean) -> Unit,
     regionalReport: RegionalWeatherReport,
     riverStations: List<RiverGaugeStation>,
     primaryStation: RiverGaugeStation?,
     isSyncing: Boolean,
     onRefresh: () -> Unit,
-    onSendAreaNotificationNow: () -> Unit,
     onOpenRiversTab: () -> Unit,
     onDialEmergencyDmc: () -> Unit,
     modifier: Modifier = Modifier
@@ -50,6 +55,7 @@ fun AlertsDashboardScreen(
     val floodingCount = remember(riverStations) {
         riverStations.count { it.floodStatus == FloodStatus.MAJOR_FLOOD || it.floodStatus == FloodStatus.MINOR_FLOOD }
     }
+    val res = LocalContext.current.resources
 
     PullToRefreshBox(
         isRefreshing = isSyncing,
@@ -71,7 +77,13 @@ fun AlertsDashboardScreen(
                 )
             }
             if (alerts.isNotEmpty()) {
-                item { AlertBanner(alerts = alerts, onNotifyMe = onSendAreaNotificationNow) }
+                item {
+                    AlertBanner(
+                        alerts = alerts,
+                        alertsEnabled = alertsEnabled,
+                        onAlertsEnabledChange = onAlertsEnabledChange
+                    )
+                }
             }
             item { HourlyForecastStrip(hourly = regionalReport.hourly, isLive = regionalReport.isLiveApiData) }
             if (regionalReport.isLiveApiData && regionalReport.daily.isNotEmpty()) {
@@ -86,11 +98,13 @@ fun AlertsDashboardScreen(
                 )
             }
             item { EmergencyCallButton(onCallEmergency = onDialEmergencyDmc) }
-            if (regionalReport.isLiveApiData) {
+            if (regionalReport.isLiveApiData && regionalReport.fetchedAtMillis > 0) {
                 item {
                     Text(
-                        text = "Updated ${regionalReport.syncedTimestamp.substringAfterLast("• ").removeSuffix(" SLST")} · " +
-                            if (regionalReport.syncedTimestamp.contains("model blend")) "blend of weather models via Open-Meteo" else "Open-Meteo",
+                        text = stringResource(
+                            R.string.updated_source,
+                            WeatherFormat.time(res, regionalReport.fetchedAtMillis)
+                        ),
                         style = MaterialTheme.typography.labelMedium,
                         color = AdaptiveSecondaryText,
                         textAlign = TextAlign.Center,
