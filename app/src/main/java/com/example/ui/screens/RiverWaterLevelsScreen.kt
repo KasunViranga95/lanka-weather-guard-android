@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -30,6 +32,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,6 +53,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.model.FloodStatus
+import com.example.model.GaugeFeed
+import com.example.model.Reservoir
+import com.example.model.ReservoirStatus
 import com.example.model.HydrographTimeRange
 import com.example.model.RiverGaugeStation
 import com.example.ui.components.HydrographTimeRangeSelector
@@ -56,6 +64,8 @@ import com.example.ui.components.RiverThresholdBar
 import com.example.ui.components.StatusPill
 import com.example.ui.components.trendIcon
 import com.example.ui.theme.AdaptiveBorderColor
+import com.example.ui.theme.AdaptiveCyanAccent
+import com.example.ui.theme.WarningAmber
 import com.example.ui.theme.AdaptiveElevatedColor
 import com.example.ui.theme.AdaptivePrimaryText
 import com.example.ui.theme.AdaptiveSecondaryText
@@ -98,6 +108,7 @@ private fun formatLevel(metres: Double) = String.format(Locale.US, "%.2f m", met
 @Composable
 fun RiverWaterLevelsScreen(
     stations: List<RiverGaugeStation>,
+    reservoirs: List<Reservoir>,
     selectedBasinFilter: String,
     searchQuery: String,
     selectedHydrographTimeRange: HydrographTimeRange,
@@ -107,6 +118,8 @@ fun RiverWaterLevelsScreen(
     modifier: Modifier = Modifier
 ) {
     var statusFilter by rememberSaveable { mutableStateOf(RiverStatusFilter.ALL) }
+    var reservoirFilter by rememberSaveable { mutableStateOf(ReservoirFilter.ALL) }
+    var showReservoirs by rememberSaveable { mutableStateOf(false) }
     var expandedStationId by rememberSaveable { mutableStateOf<String?>(null) }
     val res = LocalContext.current.resources
 
@@ -136,10 +149,23 @@ fun RiverWaterLevelsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                listOf(false to R.string.view_rivers, true to R.string.view_reservoirs).forEachIndexed { idx, (reservoirsView, label) ->
+                    SegmentedButton(
+                        selected = showReservoirs == reservoirsView,
+                        onClick = { showReservoirs = reservoirsView },
+                        shape = SegmentedButtonDefaults.itemShape(index = idx, count = 2),
+                        modifier = Modifier.testTag(if (reservoirsView) "view_reservoirs" else "view_rivers")
+                    ) { Text(stringResource(label)) }
+                }
+            }
+        }
+
+        item {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChanged,
-                placeholder = { Text(stringResource(R.string.search_rivers_hint)) },
+                placeholder = { Text(stringResource(if (showReservoirs) R.string.search_reservoirs_hint else R.string.search_rivers_hint)) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = if (searchQuery.isNotEmpty()) {
                     {
@@ -154,6 +180,16 @@ fun RiverWaterLevelsScreen(
                     .fillMaxWidth()
                     .testTag("search_rivers_input")
             )
+        }
+
+        if (showReservoirs) {
+            reservoirItems(
+                reservoirs = reservoirs,
+                searchQuery = searchQuery,
+                filter = reservoirFilter,
+                onFilterChange = { reservoirFilter = it }
+            )
+            return@LazyColumn
         }
 
         item {
@@ -291,7 +327,8 @@ private fun StationRow(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "${station.district} · ${stringResource(if (live) status.labelRes else R.string.no_recent_reading)}",
+                    text = "${station.district} · ${stringResource(if (live) status.labelRes else R.string.no_recent_reading)}" +
+                        if (live && station.marksEstimated && status != FloodStatus.NORMAL) " (${stringResource(R.string.estimated_levels_short)})" else "",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (!live || status == FloodStatus.NORMAL) AdaptiveSecondaryText else status.color
                 )
@@ -331,7 +368,11 @@ private fun StationRow(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     StatusPill(text = stringResource(status.labelRes), color = status.color)
                     Text(
-                        text = stringResource(R.string.change_last_hour, stringResource(station.trend.labelRes), String.format(Locale.US, "%+.2f", station.deltaM)),
+                        text = stringResource(
+                            if (station.feed == GaugeFeed.IRRIGATION) R.string.change_last_hour else R.string.change_per_hour_3h,
+                            stringResource(station.trend.labelRes),
+                            String.format(Locale.US, "%+.2f", station.deltaM)
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = AdaptiveSecondaryText
                     )
@@ -339,28 +380,40 @@ private fun StationRow(
 
                 RiverThresholdBar(station = station)
 
+                if (station.marksEstimated) {
+                    Text(stringResource(R.string.estimated_levels_note), style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
+                }
+
                 if (station.sourceUnit == "ft") {
                     Text(stringResource(R.string.gauge_in_feet_note), style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
                 }
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(AdaptiveElevatedColor)
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    HydrographTimeRangeSelector(
-                        selectedRange = timeRange,
-                        onRangeSelected = onTimeRangeSelected,
-                        stationIdTagPrefix = station.id
-                    )
-                    RiverHydrographCurve(station = station, timeRange = timeRange)
+                if (station.history24hM.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(AdaptiveElevatedColor)
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        HydrographTimeRangeSelector(
+                            selectedRange = timeRange,
+                            onRangeSelected = onTimeRangeSelected,
+                            stationIdTagPrefix = station.id
+                        )
+                        RiverHydrographCurve(station = station, timeRange = timeRange)
+                    }
+                } else {
+                    Text(stringResource(R.string.no_graph_latest_only), style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
                 }
 
                 Text(
-                    text = stringResource(R.string.catchment_rain_flow, station.catchmentRainMm24h.roundToInt(), station.dischargeM3s.roundToInt()),
+                    text = if (station.rainMeasured) {
+                        stringResource(R.string.catchment_rain_flow, station.catchmentRainMm24h.roundToInt(), station.dischargeM3s.roundToInt())
+                    } else {
+                        stringResource(R.string.river_flow_only, station.dischargeM3s.roundToInt())
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = AdaptivePrimaryText
                 )
@@ -373,12 +426,196 @@ private fun StationRow(
                 }
                 station.readingTimeMillis?.let {
                     Text(
-                        text = stringResource(R.string.gauge_read_at, WeatherFormat.time(res, it)),
+                        text = stringResource(R.string.gauge_read_at, WeatherFormat.time(res, it)) + " · " +
+                            stringResource(R.string.gauge_source, stringResource(station.feed.labelRes)),
                         style = MaterialTheme.typography.labelSmall,
                         color = AdaptiveSecondaryText
                     )
                 }
             }
+        }
+    }
+}
+
+private enum class ReservoirFilter(val labelRes: Int) {
+    ALL(R.string.filter_all),
+    LETTING_OUT(R.string.reservoir_filter_out),
+    NEARLY_FULL(R.string.reservoir_nearly_full);
+
+    fun matches(reservoir: Reservoir): Boolean = when (this) {
+        ALL -> true
+        LETTING_OUT -> reservoir.status == ReservoirStatus.SPILLING || reservoir.status == ReservoirStatus.RELEASING
+        NEARLY_FULL -> reservoir.isNearlyFull
+    }
+}
+
+private fun reservoirMatchesSearchQuery(reservoir: Reservoir, rawQuery: String): Boolean {
+    val q = rawQuery.trim()
+    if (q.isEmpty()) return true
+    return reservoir.name.contains(q, ignoreCase = true) ||
+        (reservoir.river?.contains(q, ignoreCase = true) == true) ||
+        (reservoir.district?.contains(q, ignoreCase = true) == true)
+}
+
+/** Reservoir view of the Rivers tab: filters, then one card per status, those letting water out first. */
+private fun LazyListScope.reservoirItems(
+    reservoirs: List<Reservoir>,
+    searchQuery: String,
+    filter: ReservoirFilter,
+    onFilterChange: (ReservoirFilter) -> Unit
+) {
+    item {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(ReservoirFilter.entries.toList(), key = { it.name }) { f ->
+                FilterChip(
+                    selected = filter == f,
+                    onClick = { onFilterChange(f) },
+                    label = { Text("${stringResource(f.labelRes)} (${reservoirs.count { f.matches(it) }})") },
+                    modifier = Modifier.testTag("reservoir_filter_${f.name.lowercase(Locale.US)}")
+                )
+            }
+        }
+    }
+    item {
+        Text(
+            text = if (reservoirs.isEmpty()) stringResource(R.string.reservoirs_unavailable)
+            else stringResource(R.string.reservoirs_summary, reservoirs.size, reservoirs.count { ReservoirFilter.LETTING_OUT.matches(it) }),
+            style = MaterialTheme.typography.labelMedium,
+            color = AdaptiveSecondaryText
+        )
+    }
+    val groups = reservoirs
+        .filter { filter.matches(it) && reservoirMatchesSearchQuery(it, searchQuery) }
+        .groupBy { it.status }
+        .toList()
+        .sortedByDescending { it.first.rank }
+        .map { (status, list) ->
+            status to list.sortedWith(compareByDescending<Reservoir> { it.flowCusecs ?: -1.0 }.thenByDescending { it.storagePercent ?: -1.0 }.thenBy { it.name })
+        }
+    if (reservoirs.isNotEmpty() && groups.isEmpty()) {
+        item {
+            Text(
+                text = if (searchQuery.isBlank()) stringResource(R.string.no_reservoirs_in_category)
+                else stringResource(R.string.no_reservoir_matches, searchQuery.trim()),
+                style = MaterialTheme.typography.bodyMedium,
+                color = AdaptiveSecondaryText,
+                modifier = Modifier.padding(vertical = 24.dp)
+            )
+        }
+    }
+    items(groups, key = { "reservoirs_${it.first.name}" }) { (status, list) ->
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(AdaptiveSurfaceColor)
+                .testTag("reservoir_group_${status.name.lowercase(Locale.US)}")
+        ) {
+            Text(
+                text = "${stringResource(status.labelRes)} (${list.size})",
+                style = MaterialTheme.typography.titleMedium,
+                color = AdaptivePrimaryText,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp)
+            )
+            list.forEachIndexed { idx, reservoir ->
+                if (idx > 0) HorizontalDivider(color = AdaptiveBorderColor, modifier = Modifier.padding(horizontal = 16.dp))
+                ReservoirRow(reservoir)
+            }
+        }
+    }
+    if (reservoirs.isNotEmpty()) {
+        item {
+            Text(
+                text = stringResource(R.string.reservoir_note, Reservoir.NEARLY_FULL_PERCENT.roundToInt()),
+                style = MaterialTheme.typography.bodySmall,
+                color = AdaptiveSecondaryText
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReservoirRow(reservoir: Reservoir) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .testTag("reservoir_${reservoir.id}"),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(reservoir.status.color)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = reservoir.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = AdaptivePrimaryText,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                val place = listOfNotNull(reservoir.district, reservoir.river).joinToString(" · ")
+                if (place.isNotEmpty()) {
+                    Text(place, style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            reservoir.storagePercent?.let { pct ->
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = stringResource(R.string.reservoir_full_pct, pct.roundToInt()),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = AdaptivePrimaryText,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (reservoir.isNearlyFull) {
+                        Text(stringResource(R.string.reservoir_nearly_full), style = MaterialTheme.typography.labelSmall, color = WarningAmber)
+                    }
+                }
+            }
+        }
+        reservoir.storagePercent?.let { pct ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(AdaptiveElevatedColor)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth((pct / 100.0).toFloat().coerceIn(0f, 1f))
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(if (reservoir.isNearlyFull) WarningAmber else AdaptiveCyanAccent)
+                )
+            }
+        }
+        val cusecs = reservoir.flowCusecs
+        val m3s = reservoir.flowM3s
+        if (cusecs != null && m3s != null) {
+            val flowRes = when (reservoir.flowKind) {
+                "spill" -> R.string.reservoir_flow_spill
+                "outlets" -> R.string.reservoir_flow_outlets
+                else -> R.string.reservoir_flow_downstream
+            }
+            Text(
+                text = stringResource(flowRes, String.format(Locale.US, "%,.0f", cusecs), String.format(Locale.US, if (m3s < 10) "%.1f" else "%,.0f", m3s)),
+                style = MaterialTheme.typography.bodySmall,
+                color = AdaptivePrimaryText
+            )
+        }
+        if (reservoir.readingDay != null && reservoir.agency != null) {
+            Text(
+                text = stringResource(R.string.reservoir_report, reservoir.readingDay, reservoir.agency),
+                style = MaterialTheme.typography.labelSmall,
+                color = AdaptiveSecondaryText
+            )
         }
     }
 }

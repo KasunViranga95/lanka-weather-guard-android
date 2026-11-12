@@ -11,6 +11,7 @@ import com.example.model.AppTab
 import com.example.model.CityWeatherSnapshot
 import com.example.model.HydrographTimeRange
 import com.example.model.RegionalWeatherReport
+import com.example.model.Reservoir
 import com.example.model.RiverGaugeStation
 import com.example.model.SriLankaRegion
 import com.example.model.ZoomEarthLayer
@@ -39,6 +40,7 @@ data class WeatherUiState(
     val alertsEnabled: Boolean = true,
     val isLoading: Boolean = false,
     val riverStations: List<RiverGaugeStation> = emptyList(),
+    val reservoirs: List<Reservoir> = emptyList(),
     val selectedBasinFilter: String = "",
     val riverSearchQuery: String = "",
     val selectedHydrographTimeRange: HydrographTimeRange = HydrographTimeRange.HOURS_24,
@@ -76,6 +78,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
             alertsEnabled = UserPreferencesStore.alertsEnabled(),
             // Show what was saved on the phone straight away; live data replaces it when it arrives
             riverStations = repository.cachedStations() ?: repository.getReferenceStations(),
+            reservoirs = repository.cachedReservoirs().orEmpty(),
             regionalReport = repository.cachedReport(initialRegion, initialCity)
                 ?: repository.getPlaceholderRegionalReport(initialRegion, initialCity),
             checkedChecklistIds = UserPreferencesStore.loadChecklist()
@@ -204,12 +207,14 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
             val snapshots = repository.fetchIslandSnapshots()
             val report = repository.fetchRegionalReport(region, nearestCity)
             val stations = repository.fetchLiveRiverStations(region)
+            val reservoirs = repository.fetchReservoirs()
             _uiState.update { state ->
                 state.copy(
                     isLoading = false,
                     islandSnapshots = snapshots.ifEmpty { state.islandSnapshots },
                     regionalReport = report,
-                    riverStations = stations
+                    riverStations = stations,
+                    reservoirs = reservoirs.ifEmpty { state.reservoirs }
                 )
             }
             if (report.isLiveApiData && !report.isFromCache) {

@@ -83,7 +83,7 @@ object AlertEngine {
                         String.format(Locale.US, "%.2f", st.currentLevelM),
                         res.getString(st.floodStatus.labelRes),
                         res.getString(st.trend.labelRes)
-                    )
+                    ) + if (st.marksEstimated) " (${res.getString(R.string.estimated_levels_short)})" else ""
                 }
                 val actions = when (worst.floodStatus) {
                     FloodStatus.MAJOR_FLOOD -> listOf(

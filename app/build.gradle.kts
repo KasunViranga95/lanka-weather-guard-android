@@ -81,6 +81,12 @@ android {
   }
 }
 
+// Annotations on constructor properties (@Json, @StringRes) apply to the parameter and the property,
+// the behaviour Kotlin is moving to; this also silences its warning about the change
+kotlin {
+  compilerOptions { freeCompilerArgs.add("-Xannotation-default-target=param-property") }
+}
+
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
 // to match the convention used in Web projects.
 secrets {

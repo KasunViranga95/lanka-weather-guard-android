@@ -22,6 +22,7 @@ You can always choose a town by hand instead.
 |---|---|---|
 | Open-Meteo (open-meteo.com) | Weather forecasts | Coordinates of your chosen towns |
 | Sri Lanka Irrigation Department river gauge service (ArcGIS) | River levels | A request for the latest gauge readings (nothing about you) |
+| Sri Lanka Water Levels (waterlevels.lk) | HMIS and RiverNet.lk river gauges, reservoir reports | A request for the latest readings (nothing about you) |
 | Windy.com | The live map on the Map tab | The map position of your chosen town. Windy.com may use its own cookies; see its privacy policy. |
 | AI helper (only if you use it) | Answers to your questions | Your question, plus the current weather and river data for your chosen town. It goes through the app's own server to Google Gemini. Do not type personal information into the AI helper. |
 

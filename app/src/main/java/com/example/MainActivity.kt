@@ -529,6 +529,7 @@ fun LankaWeatherGuardApp(
 
                     AppTab.RIVERS -> RiverWaterLevelsScreen(
                         stations = uiState.riverStations,
+                        reservoirs = uiState.reservoirs,
                         selectedBasinFilter = uiState.selectedBasinFilter,
                         searchQuery = uiState.riverSearchQuery,
                         selectedHydrographTimeRange = uiState.selectedHydrographTimeRange,

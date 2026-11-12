@@ -122,6 +122,64 @@ data class HydroStationAttributes(
     @Json(name = "Unit") val unit: String?
 )
 
+// Sri Lanka Water Levels (waterlevels.lk): free public API that adds the HMIS and RiverNet.lk gauges and the
+// Irrigation Department / Mahaweli Authority reservoir reports. Docs: https://waterlevels.lk/data
+data class WaterLevelsResponse(
+    @Json(name = "stations") val stations: List<WaterLevelsStation>?
+)
+
+data class WaterLevelsStation(
+    @Json(name = "station") val station: String?,
+    @Json(name = "river") val river: String?,
+    // Always feet in this API ("unit": "ft"); published keeps the agency's own figure and unit
+    @Json(name = "level") val levelFt: Double?,
+    @Json(name = "published") val published: WaterLevelsPublished?,
+    @Json(name = "changePerHour3h") val changePerHourFt: Double?,
+    @Json(name = "observedAt") val observedAt: String?,
+    @Json(name = "status") val status: String?,
+    @Json(name = "rain") val rain: WaterLevelsRain?
+)
+
+data class WaterLevelsRain(
+    // What the gauge's own rain sensor recorded; null when it has none
+    @Json(name = "fallen_24h_mm") val fallen24hMm: Double?
+)
+
+data class WaterLevelsPublished(
+    @Json(name = "level") val level: Double?,
+    @Json(name = "unit") val unit: String?
+)
+
+data class ReservoirsResponse(
+    @Json(name = "reservoirs") val reservoirs: List<ReservoirDto>?
+)
+
+data class ReservoirDto(
+    @Json(name = "id") val id: String?,
+    @Json(name = "name") val name: String?,
+    @Json(name = "river") val river: String?,
+    @Json(name = "district") val district: String?,
+    @Json(name = "type") val type: String?,
+    @Json(name = "status") val status: String?,
+    @Json(name = "storagePercent") val storagePercent: Double?,
+    @Json(name = "flow") val flow: ReservoirFlowDto?,
+    @Json(name = "readingDay") val readingDay: String?,
+    @Json(name = "source") val source: String?
+)
+
+data class ReservoirFlowDto(
+    @Json(name = "kind") val kind: String?,
+    @Json(name = "cusecs") val cusecs: Double?
+)
+
+interface WaterLevelsService {
+    @GET("api/levels")
+    suspend fun getLevels(): WaterLevelsResponse
+
+    @GET("api/reservoirs")
+    suspend fun getReservoirs(): ReservoirsResponse
+}
+
 interface OpenMeteoService {
     @GET("v1/forecast")
     suspend fun getForecast(
@@ -218,6 +276,21 @@ object WeatherNetworkClient {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(OpenMeteoFloodService::class.java)
+    }
+
+    val waterLevelsService: WaterLevelsService by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://waterlevels.lk/")
+            .client(
+                okHttpClient.newBuilder()
+                    .addInterceptor { chain ->
+                        chain.proceed(chain.request().newBuilder().header("User-Agent", "LankaWeatherGuard-Android").build())
+                    }
+                    .build()
+            )
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(WaterLevelsService::class.java)
     }
 
     val irrigationGaugeService: IrrigationGaugeService by lazy {
