@@ -78,6 +78,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.data.NearbyGauge
 import com.example.model.AlertSeverity
 import com.example.model.DailyForecastItem
 import com.example.model.FloodStatus
@@ -640,7 +641,8 @@ fun trendIcon(trend: WaterTrend): ImageVector = when (trend) {
 /** The river gauge that matters most for the user's area, in plain language. */
 @Composable
 fun NearestRiverCard(
-    station: RiverGaugeStation?,
+    nearbyGauge: NearbyGauge?,
+    placeName: String,
     floodingStationCount: Int,
     onOpenRivers: () -> Unit,
     modifier: Modifier = Modifier
@@ -651,17 +653,31 @@ fun NearestRiverCard(
         onAction = onOpenRivers,
         modifier = modifier
     ) {
-        if (station == null) {
-            Text(stringResource(R.string.loading_rivers), style = MaterialTheme.typography.bodyMedium, color = AdaptiveSecondaryText)
+        if (nearbyGauge == null) {
+            Text(
+                stringResource(R.string.no_gauge_nearby, placeName),
+                style = MaterialTheme.typography.bodyMedium,
+                color = AdaptiveSecondaryText
+            )
             return@SectionCard
         }
+        val station = nearbyGauge.station
         Text(
-            text = stringResource(R.string.river_at_station, station.riverName, station.stationName.substringBefore(" (")),
+            text = stringResource(R.string.river_at_station, station.riverName, station.stationName),
             style = MaterialTheme.typography.bodyLarge,
             color = AdaptivePrimaryText,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = stringResource(
+                R.string.gauge_distance_from,
+                if (nearbyGauge.distanceKm < 1.0) "<1" else nearbyGauge.distanceKm.roundToInt().toString(),
+                placeName
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = AdaptiveSecondaryText
         )
         if (!station.hasLiveReading) {
             Text(stringResource(R.string.no_recent_reading), style = MaterialTheme.typography.bodyMedium, color = AdaptiveSecondaryText)

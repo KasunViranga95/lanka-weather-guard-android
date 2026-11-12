@@ -18,6 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.R
+import com.example.data.NearbyGauge
 import com.example.model.FloodStatus
 import com.example.model.RegionalWeatherReport
 import com.example.model.RiverGaugeStation
@@ -45,7 +46,7 @@ fun WeatherScreen(
     onAlertsEnabledChange: (Boolean) -> Unit,
     regionalReport: RegionalWeatherReport,
     riverStations: List<RiverGaugeStation>,
-    primaryStation: RiverGaugeStation?,
+    nearbyGauge: NearbyGauge?,
     isSyncing: Boolean,
     onRefresh: () -> Unit,
     onOpenRiversTab: () -> Unit,
@@ -92,7 +93,8 @@ fun WeatherScreen(
             item { ConditionsGrid(report = regionalReport) }
             item {
                 NearestRiverCard(
-                    station = primaryStation,
+                    nearbyGauge = nearbyGauge,
+                    placeName = selectedNearestCity,
                     floodingStationCount = floodingCount,
                     onOpenRivers = onOpenRiversTab
                 )

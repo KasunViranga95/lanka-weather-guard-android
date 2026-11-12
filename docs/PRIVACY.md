@@ -12,7 +12,7 @@ Lanka Weather Guard shows weather forecasts, river levels and flood and weather 
 
 ## Location
 
-If you tap **Use my location**, the app asks Android for your last known location. It uses that only on your phone to find the nearest town in its list. It then uses that town's coordinates, not your own position, to request the forecast. The app does not track your location in the background.
+If you tap **Use my location**, the app asks Android for your last known location. It uses that only on your phone, to find the nearest town in its list and the nearest river gauge, and keeps it on the phone for that. It then uses that town's coordinates, not your own position, to request the forecast. The app does not track your location in the background.
 
 You can always choose a town by hand instead.
 

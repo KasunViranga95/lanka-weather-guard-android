@@ -8,8 +8,14 @@ data class SavedUserPreferences(
     val regionId: String?,
     val nearestCity: String?,
     val isFromGps: Boolean,
-    val isDarkTheme: Boolean
-)
+    val isDarkTheme: Boolean,
+    // The phone's position when the place came from "Use my location"; kept on the phone only
+    val gpsLatitude: Double? = null,
+    val gpsLongitude: Double? = null
+) {
+    val gpsLocation: Pair<Double, Double>?
+        get() = if (isFromGps && gpsLatitude != null && gpsLongitude != null) gpsLatitude to gpsLongitude else null
+}
 
 /** A place the user follows: a town and the district it belongs to. */
 data class SavedPlace(val regionId: String, val city: String) {
@@ -23,6 +29,8 @@ object UserPreferencesStore {
     private const val KEY_NEAREST_CITY = "saved_nearest_city"
     private const val KEY_IS_FROM_GPS = "saved_is_from_gps"
     private const val KEY_IS_DARK_THEME = "saved_is_dark_theme"
+    private const val KEY_GPS_LAT = "saved_gps_lat"
+    private const val KEY_GPS_LON = "saved_gps_lon"
     private const val KEY_PLACES = "saved_places"
     private const val KEY_ALERTS_ENABLED = "alerts_enabled"
     private const val KEY_NOTIFIED = "notified_alerts"
@@ -54,17 +62,33 @@ object UserPreferencesStore {
             regionId = sp.getString(KEY_REGION_ID, null),
             nearestCity = sp.getString(KEY_NEAREST_CITY, null),
             isFromGps = sp.getBoolean(KEY_IS_FROM_GPS, false),
-            isDarkTheme = sp.getBoolean(KEY_IS_DARK_THEME, true)
+            isDarkTheme = sp.getBoolean(KEY_IS_DARK_THEME, true),
+            gpsLatitude = sp.getString(KEY_GPS_LAT, null)?.toDoubleOrNull(),
+            gpsLongitude = sp.getString(KEY_GPS_LON, null)?.toDoubleOrNull()
         )
     }
 
     /** Makes [region]/[nearestCity] the place shown in the app and adds it to the saved places. */
-    fun saveLocation(region: SriLankaRegion, nearestCity: String, isFromGps: Boolean) {
-        inMemoryFallback = inMemoryFallback.copy(regionId = region.id, nearestCity = nearestCity, isFromGps = isFromGps)
+    fun saveLocation(region: SriLankaRegion, nearestCity: String, isFromGps: Boolean, gpsLocation: Pair<Double, Double>? = null) {
+        val gps = gpsLocation?.takeIf { isFromGps }
+        inMemoryFallback = inMemoryFallback.copy(
+            regionId = region.id,
+            nearestCity = nearestCity,
+            isFromGps = isFromGps,
+            gpsLatitude = gps?.first,
+            gpsLongitude = gps?.second
+        )
         prefs()?.edit()?.apply {
             putString(KEY_REGION_ID, region.id)
             putString(KEY_NEAREST_CITY, nearestCity)
             putBoolean(KEY_IS_FROM_GPS, isFromGps)
+            if (gps != null) {
+                putString(KEY_GPS_LAT, gps.first.toString())
+                putString(KEY_GPS_LON, gps.second.toString())
+            } else {
+                remove(KEY_GPS_LAT)
+                remove(KEY_GPS_LON)
+            }
             apply()
         }
         addPlace(SavedPlace(region.id, nearestCity))
