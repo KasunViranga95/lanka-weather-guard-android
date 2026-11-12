@@ -2,6 +2,7 @@ package com.example.data
 
 import android.content.Context
 import com.example.model.RegionalWeatherReport
+import com.example.model.Reservoir
 import com.example.model.RiverGaugeStation
 import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.Moshi
@@ -22,6 +23,10 @@ object OfflineCache {
     private val reportAdapter: JsonAdapter<RegionalWeatherReport> by lazy { moshi.adapter(RegionalWeatherReport::class.java) }
     private val stationsAdapter: JsonAdapter<List<RiverGaugeStation>> by lazy {
         moshi.adapter(Types.newParameterizedType(List::class.java, RiverGaugeStation::class.java))
+    }
+
+    private val reservoirsAdapter: JsonAdapter<List<Reservoir>> by lazy {
+        moshi.adapter(Types.newParameterizedType(List::class.java, Reservoir::class.java))
     }
 
     fun init(context: Context) {
@@ -46,4 +51,12 @@ object OfflineCache {
 
     fun loadStations(): List<RiverGaugeStation>? =
         runCatching { dir?.let { File(it, "stations.json") }?.takeIf { it.exists() }?.readText()?.let(stationsAdapter::fromJson) }.getOrNull()
+
+    fun saveReservoirs(reservoirs: List<Reservoir>) {
+        if (reservoirs.isEmpty()) return
+        runCatching { dir?.let { File(it, "reservoirs.json").writeText(reservoirsAdapter.toJson(reservoirs)) } }
+    }
+
+    fun loadReservoirs(): List<Reservoir>? =
+        runCatching { dir?.let { File(it, "reservoirs.json") }?.takeIf { it.exists() }?.readText()?.let(reservoirsAdapter::fromJson) }.getOrNull()
 }

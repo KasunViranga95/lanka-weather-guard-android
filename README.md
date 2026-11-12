@@ -3,7 +3,8 @@
 An Android weather and flood app for Sri Lanka, in English, Sinhala and Tamil.
 
 - **Weather:** current conditions, a 24-hour and 7-day forecast, wind, humidity, UV index, and sunrise and sunset for any town.
-- **Rivers:** live water levels from the Irrigation Department's river gauges, compared against each gauge's alert and flood levels.
+- **Rivers:** live water levels from 60 river gauges (Irrigation Department, plus HMIS and RiverNet.lk gauges through waterlevels.lk), compared against each gauge's alert and flood levels. Levels are shown in metres (Nagalagam Street is published in feet and converted). Gauges with no official levels use levels the app set from their own past readings, and are marked as estimated.
+- **Reservoirs:** storage and spill/release for about 140 reservoirs, from the Irrigation Department and Mahaweli Authority daily reports (through waterlevels.lk).
 - **Alerts:** worked out from those river levels and the forecast (heavy rain, strong wind, thunderstorms, landslide risk on hill slopes, heat). They are sent as notifications in the background, about every 30 minutes.
 - **Saved places:** follow up to six towns; alerts cover all of them.
 - **Home-screen widget:** temperature, rain outlook and the nearest river.
@@ -11,7 +12,7 @@ An Android weather and flood app for Sri Lanka, in English, Sinhala and Tamil.
 - **Map:** Windy.com live map (rain, radar, clouds, wind, temperature).
 - **Safety:** emergency numbers, a flood checklist and links to official warnings.
 
-Data comes from Open-Meteo, the Sri Lanka Irrigation Department and Windy.com. Alerts are calculated by the app and are not official warnings.
+Data comes from Open-Meteo, the Sri Lanka Irrigation Department, Sri Lanka Water Levels (waterlevels.lk, by Shakeeb Sadikeen; data from the Department of Irrigation, HMIS, RiverNet.lk and the Mahaweli Authority) and Windy.com. Alerts are calculated by the app and are not official warnings.
 
 ## Build
 

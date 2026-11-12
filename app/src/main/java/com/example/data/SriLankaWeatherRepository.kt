@@ -6,8 +6,12 @@ import com.example.model.DailyForecastItem
 import com.example.model.HourlyForecastItem
 import com.example.model.RegionalWeatherReport
 import com.example.model.FEET_TO_METRES
+import com.example.model.GaugeFeed
+import com.example.model.Reservoir
+import com.example.model.ReservoirStatus
 import com.example.model.RiverGaugeStation
 import com.example.model.SriLankaRegion
+import com.example.network.WaterLevelsStation
 import com.example.network.IrrigationGaugeReading
 import com.example.network.TEMPERATURE_ENSEMBLE_MODELS
 import com.example.network.WeatherNetworkClient
@@ -503,9 +507,9 @@ class SriLankaWeatherRepository {
             mapYFraction = 0.73f,
             currentLevelM = 8.45,
             previousLevelM = 7.90,
-            alertLevelM = 7.00,
-            minorFloodLevelM = 8.00,
-            majorFloodLevelM = 10.00,
+            alertLevelM = 6.50,
+            minorFloodLevelM = 7.50,
+            majorFloodLevelM = 9.50,
             catchmentRainMm24h = 164.0,
             dischargeM3s = 1140.0,
             lastUpdatedText = "Live • RiverWatch.LK / Irrigation Dept",
@@ -525,7 +529,7 @@ class SriLankaWeatherRepository {
             currentLevelM = 16.80,
             previousLevelM = 16.50,
             alertLevelM = 15.00,
-            minorFloodLevelM = 16.50,
+            minorFloodLevelM = 15.50,
             majorFloodLevelM = 19.00,
             catchmentRainMm24h = 172.0,
             dischargeM3s = 890.0,
@@ -545,8 +549,8 @@ class SriLankaWeatherRepository {
             mapYFraction = 0.69f,
             currentLevelM = 4.35,
             previousLevelM = 4.05,
-            alertLevelM = 3.50,
-            minorFloodLevelM = 4.50,
+            alertLevelM = 3.00,
+            minorFloodLevelM = 4.00,
             majorFloodLevelM = 6.00,
             catchmentRainMm24h = 188.0,
             dischargeM3s = 640.0,
@@ -567,8 +571,8 @@ class SriLankaWeatherRepository {
             currentLevelM = 3.58,
             previousLevelM = 3.30,
             alertLevelM = 3.00,
-            minorFloodLevelM = 3.40,
-            majorFloodLevelM = 5.00,
+            minorFloodLevelM = 4.00,
+            majorFloodLevelM = 6.00,
             catchmentRainMm24h = 154.0,
             dischargeM3s = 410.0,
             lastUpdatedText = "Live • RiverWatch.LK / Irrigation Dept",
@@ -588,9 +592,9 @@ class SriLankaWeatherRepository {
             mapYFraction = 0.72f,
             currentLevelM = 5.92,
             previousLevelM = 5.60,
-            alertLevelM = 5.80,
-            minorFloodLevelM = 6.40,
-            majorFloodLevelM = 7.50,
+            alertLevelM = 4.80,
+            minorFloodLevelM = 5.80,
+            majorFloodLevelM = 7.00,
             catchmentRainMm24h = 179.0,
             dischargeM3s = 490.0,
             lastUpdatedText = "Live • RiverWatch.LK / Irrigation Dept",
@@ -719,7 +723,7 @@ class SriLankaWeatherRepository {
             mapYFraction = 0.81f,
             currentLevelM = 6.32,
             previousLevelM = 5.88,
-            alertLevelM = 4.80,
+            alertLevelM = 4.00,
             minorFloodLevelM = 6.00,
             majorFloodLevelM = 7.50,
             catchmentRainMm24h = 184.0,
@@ -787,7 +791,7 @@ class SriLankaWeatherRepository {
             mapYFraction = 0.86f,
             currentLevelM = 6.35,
             previousLevelM = 5.90,
-            alertLevelM = 4.50,
+            alertLevelM = 4.00,
             minorFloodLevelM = 6.00,
             majorFloodLevelM = 7.50,
             catchmentRainMm24h = 168.0,
@@ -876,8 +880,8 @@ class SriLankaWeatherRepository {
             currentLevelM = 3.35,
             previousLevelM = 3.18,
             alertLevelM = 3.00,
-            minorFloodLevelM = 4.50,
-            majorFloodLevelM = 6.00,
+            minorFloodLevelM = 5.00,
+            majorFloodLevelM = 7.00,
             catchmentRainMm24h = 98.0,
             dischargeM3s = 430.0,
             lastUpdatedText = "Live • RiverWatch.LK / Irrigation Dept",
@@ -944,7 +948,7 @@ class SriLankaWeatherRepository {
             previousLevelM = 2.88,
             alertLevelM = 4.00,
             minorFloodLevelM = 4.60,
-            majorFloodLevelM = 6.00,
+            majorFloodLevelM = 6.50,
             catchmentRainMm24h = 56.0,
             dischargeM3s = 190.0,
             lastUpdatedText = "Live • RiverWatch.LK / Irrigation Dept",
@@ -1055,7 +1059,7 @@ class SriLankaWeatherRepository {
             previousLevelM = 4.95,
             alertLevelM = 5.00,
             minorFloodLevelM = 6.00,
-            majorFloodLevelM = 7.20,
+            majorFloodLevelM = 8.00,
             catchmentRainMm24h = 94.0,
             dischargeM3s = 680.0,
             lastUpdatedText = "Live • RiverWatch.LK / Irrigation Dept",
@@ -1074,9 +1078,9 @@ class SriLankaWeatherRepository {
             mapYFraction = 0.49f,
             currentLevelM = 4.75,
             previousLevelM = 4.52,
-            alertLevelM = 4.50,
-            minorFloodLevelM = 6.00,
-            majorFloodLevelM = 7.50,
+            alertLevelM = 3.00,
+            minorFloodLevelM = 4.30,
+            majorFloodLevelM = 6.00,
             catchmentRainMm24h = 74.0,
             dischargeM3s = 690.0,
             lastUpdatedText = "Live • RiverWatch.LK / Irrigation Dept",
@@ -1099,7 +1103,7 @@ class SriLankaWeatherRepository {
             previousLevelM = 5.38,
             alertLevelM = 6.00,
             minorFloodLevelM = 7.50,
-            majorFloodLevelM = 9.00,
+            majorFloodLevelM = 10.50,
             catchmentRainMm24h = 48.0,
             dischargeM3s = 280.0,
             lastUpdatedText = "Live • RiverWatch.LK / Irrigation Dept",
@@ -1120,9 +1124,9 @@ class SriLankaWeatherRepository {
             mapYFraction = 0.35f,
             currentLevelM = 5.65,
             previousLevelM = 5.42,
-            alertLevelM = 5.50,
+            alertLevelM = 5.00,
             minorFloodLevelM = 6.80,
-            majorFloodLevelM = 8.20,
+            majorFloodLevelM = 7.80,
             catchmentRainMm24h = 68.0,
             dischargeM3s = 340.0,
             lastUpdatedText = "Live • RiverWatch.LK / Irrigation Dept",
@@ -1143,8 +1147,8 @@ class SriLankaWeatherRepository {
             mapYFraction = 0.53f,
             currentLevelM = 4.92,
             previousLevelM = 4.65,
-            alertLevelM = 4.80,
-            minorFloodLevelM = 5.80,
+            alertLevelM = 4.75,
+            minorFloodLevelM = 6.00,
             majorFloodLevelM = 7.00,
             catchmentRainMm24h = 116.0,
             dischargeM3s = 480.0,
@@ -1189,7 +1193,7 @@ class SriLankaWeatherRepository {
             previousLevelM = 5.95,
             alertLevelM = 5.00,
             minorFloodLevelM = 6.20,
-            majorFloodLevelM = 8.20,
+            majorFloodLevelM = 9.60,
             catchmentRainMm24h = 152.0,
             dischargeM3s = 670.0,
             lastUpdatedText = "Live • RiverWatch.LK / Irrigation Dept",
@@ -1218,7 +1222,111 @@ class SriLankaWeatherRepository {
             lastUpdatedText = "Live • RiverWatch.LK / Irrigation Dept",
             hourlyLevelsM = listOf(3.75, 3.95, 4.12, 4.30, 4.46, 4.62),
             downstreamTowns = listOf("Gampaha", "Ja-Ela", "Minuwangoda", "Wattala", "Ekala")
-        )
+        ),
+
+        // ===== More Irrigation Department gauges (same ArcGIS feed; official levels, metres) =====
+        gauge("nilwala_thalgahagoda", "Thalgahagoda", "Nilwala Ganga", "RB 12", "Matara", 6.0103, 80.5329,
+            1.40, 1.70, 2.80, 0.9, listOf("Thalgahagoda", "Matara", "Akuressa")),
+        gauge("mahaweli_thaldena", "Thaldena (Badulu Oya)", "Mahaweli Ganga", "RB 60", "Badulla", 7.0907, 81.0489,
+            3.00, 4.00, 5.00, 1.8, listOf("Thaldena", "Badulla", "Hali-Ela"), tributaryOf = "Badulu Oya"),
+        gauge("kirindi_kudaoya", "Kuda Oya", "Kirindi Oya", "RB 22", "Monaragala", 6.5247, 81.1233,
+            6.90, 8.40, 8.80, 2.6, listOf("Kuda Oya", "Lunugamvehera")),
+        gauge("maduru_padiyathalawa", "Padiyathalawa", "Maduru Oya", "", "Ampara", 7.3823, 81.1946,
+            4.00, 4.50, 6.00, 0.8, listOf("Padiyathalawa", "Maha Oya")),
+        gauge("mee_galgamuwa", "Galgamuwa", "Mee Oya", "", "Kurunegala", 7.9694, 80.2623,
+            4.84, 5.94, 8.00, 0.6, listOf("Galgamuwa")),
+        gauge("ma_yakawewa", "Yaka Wewa", "Ma Oya", "", "Anuradhapura", 8.7260, 80.6750,
+            4.00, 5.00, 6.00, 0.7, listOf("Yaka Wewa", "Kebithigollewa")),
+
+        // ===== HMIS gauges (hmis.gov.lk; Irrigation Dept & ACCIMT sensors), via waterlevels.lk. HMIS levels, metres =====
+        gauge("kelani_karawanella", "Karawanella Bridge", "Kelani Ganga", "RB 01", "Kegalle", 7.0202, 80.2624,
+            3.00, 4.00, 6.00, 2.0, listOf("Karawanella", "Ruwanwella", "Yatiyantota"), feed = GaugeFeed.HMIS),
+        gauge("mahaweli_mahiyangana", "Mahiyangana Bridge", "Mahaweli Ganga", "RB 60", "Badulla", 7.3381, 80.9866,
+            5.00, 6.00, 8.00, 3.0, listOf("Mahiyangana", "Dambana"), feed = GaugeFeed.HMIS),
+        gauge("maduru_vadamunai", "Vadamunai Bridge", "Maduru Oya", "", "Batticaloa", 7.9387, 81.2571,
+            5.00, 7.00, 8.00, 3.5, listOf("Vadamunai", "Welikanda"), feed = GaugeFeed.HMIS),
+        gauge("maduru_punani", "Punani Anicut", "Maduru Oya", "", "Batticaloa", 7.9464, 81.3972,
+            3.00, 5.00, 6.00, 1.5, listOf("Punani", "Valaichchenai"), feed = GaugeFeed.HMIS),
+        gauge("maduru_pulipanchakal", "Pulipanchakal Bridge", "Maduru Oya", "", "Batticaloa", 7.8634, 81.5063,
+            3.00, 5.00, 6.00, 1.5, listOf("Pulipanchakal", "Chenkalady", "Eravur"), feed = GaugeFeed.HMIS),
+        gauge("mundeni_galodaya", "Galodaya Bridge", "Mundeni Aru", "RB 52", "Batticaloa", 7.5622, 81.3331,
+            3.00, 5.00, 6.00, 1.0, listOf("Galodaya", "Bakiella"), feed = GaugeFeed.HMIS),
+        gauge("mundeni_lavanai", "Lavanai Aru Bridge", "Mundeni Aru", "RB 52", "Batticaloa", 7.7177, 81.4800,
+            2.00, 4.00, 6.00, 1.0, listOf("Lavanai", "Vavunathivu"), feed = GaugeFeed.HMIS),
+        gauge("magalawatavan_mullamunai", "Mullamunai Bridge", "Magalawatavan Aru", "", "Batticaloa", 7.6792, 81.5933,
+            3.00, 5.00, 6.00, 0.5, listOf("Mullamunai", "Kokkadichcholai"), feed = GaugeFeed.HMIS),
+        gauge("andella_maalayarkattu", "Maalayarkattu Bridge", "Andella Oya", "", "Ampara", 7.4340, 81.6922,
+            3.00, 6.00, 9.00, 1.4, listOf("Maalayarkattu", "Navithanveli"), feed = GaugeFeed.HMIS),
+        gauge("andella_rajagalathenna", "Rajagalathenna Bridge", "Andella Oya", "", "Ampara", 7.4714, 81.6330,
+            3.00, 6.00, 9.00, 1.2, listOf("Rajagalathenna", "Uhana"), feed = GaugeFeed.HMIS),
+
+        // ===== RiverNet.lk gauges, via waterlevels.lk. Metres =====
+        // Mapitigama and Pugoda: levels RiverNet publishes (28 Oct 2026)
+        gauge("kelani_mapitigama", "Mapitigama", "Kelani Ganga", "RB 01", "Kegalle", 7.0032, 80.2218,
+            6.00, 7.00, 8.50, 2.8, listOf("Mapitigama", "Ruwanwella", "Yatiyantota"), feed = GaugeFeed.RIVERNET),
+        gauge("kelani_pugoda", "Pugoda", "Kelani Ganga", "RB 01", "Gampaha", 6.9742, 80.1233,
+            8.00, 10.00, 11.50, 4.1, listOf("Pugoda", "Hanwella", "Dompe"), feed = GaugeFeed.RIVERNET),
+        // No official levels: set by the app from each gauge's readings, 27 Oct - 12 Nov 2026 (a period with
+        // a Kalu Ganga flood at Ratnapura). Alert = level passed 1% of the time, minor = the highest held level
+        // (99.9%), major = as far above that again as it is above the usual level. Replace when official ones exist.
+        gauge("kalu_kuruvita", "Kuruvita (Kuru Ganga)", "Kalu Ganga", "RB 03", "Ratnapura", 6.7987, 80.3684,
+            4.10, 5.10, 8.50, 1.7, listOf("Kuruvita", "Ratnapura"), tributaryOf = "Kuru Ganga", feed = GaugeFeed.RIVERNET, estimated = true),
+        gauge("kalu_elapatha", "Elapatha (Niriella Ganga)", "Kalu Ganga", "RB 03", "Ratnapura", 6.6316, 80.3656,
+            4.10, 4.40, 6.50, 2.3, listOf("Elapatha", "Niriella"), tributaryOf = "Niriella Ganga", feed = GaugeFeed.RIVERNET, estimated = true),
+        gauge("kalu_ayagama", "Ayagama (Galathura Oya)", "Kalu Ganga", "RB 03", "Ratnapura", 6.6950, 80.3850,
+            2.10, 2.40, 3.60, 1.3, listOf("Ayagama"), tributaryOf = "Galathura Oya", feed = GaugeFeed.RIVERNET, estimated = true),
+        gauge("kalu_pelmadulla", "Pelmadulla (Denawaka Ganga)", "Kalu Ganga", "RB 03", "Ratnapura", 6.7093, 80.2909,
+            2.70, 3.10, 5.00, 1.3, listOf("Pelmadulla"), tributaryOf = "Denawaka Ganga", feed = GaugeFeed.RIVERNET, estimated = true),
+        gauge("kalu_kalawana", "Kalawana (Kukule Ganga)", "Kalu Ganga", "RB 03", "Ratnapura", 6.5802, 80.3270,
+            6.20, 6.50, 8.50, 4.6, listOf("Kalawana", "Kukule"), tributaryOf = "Kukule Ganga", feed = GaugeFeed.RIVERNET, estimated = true),
+        gauge("kalu_kahawatta", "Kahawatta (Wey Ganga)", "Kalu Ganga", "RB 03", "Ratnapura", 6.5817, 80.5736,
+            3.30, 3.60, 4.70, 2.5, listOf("Kahawatta"), tributaryOf = "Wey Ganga", feed = GaugeFeed.RIVERNET, estimated = true),
+        gauge("uruwal_miriswatta", "Miriswatta", "Uruwal Oya", "", "Gampaha", 7.0832, 79.9863,
+            2.40, 2.70, 4.10, 1.3, listOf("Miriswatta", "Mudungoda", "Yakkala"), feed = GaugeFeed.RIVERNET, estimated = true),
+        gauge("wattala_kaluela", "Wattala", "Wattala Kalu Ela", "", "Gampaha", 6.9912, 79.8922,
+            2.90, 3.20, 4.00, 2.5, listOf("Wattala", "Hendala", "Mabola"), feed = GaugeFeed.RIVERNET, estimated = true)
+    )
+
+    /** A gauge added from the extra feeds, with its reference (typical) level shown until live data arrives. */
+    private fun gauge(
+        id: String,
+        stationName: String,
+        riverName: String,
+        basinCode: String,
+        district: String,
+        latitude: Double,
+        longitude: Double,
+        alertM: Double,
+        minorM: Double,
+        majorM: Double,
+        typicalM: Double,
+        downstreamTowns: List<String>,
+        tributaryOf: String? = null,
+        feed: GaugeFeed = GaugeFeed.IRRIGATION,
+        estimated: Boolean = false
+    ) = RiverGaugeStation(
+        id = id,
+        stationName = stationName,
+        riverName = riverName,
+        basinCode = basinCode,
+        district = district,
+        latitude = latitude,
+        longitude = longitude,
+        mapXFraction = (0.3036 * longitude - 23.979).toFloat().coerceIn(0f, 1f),
+        mapYFraction = (-0.2261 * latitude + 2.2792).toFloat().coerceIn(0f, 1f),
+        currentLevelM = typicalM,
+        previousLevelM = typicalM,
+        alertLevelM = alertM,
+        minorFloodLevelM = minorM,
+        majorFloodLevelM = majorM,
+        catchmentRainMm24h = 0.0,
+        dischargeM3s = 0.0,
+        lastUpdatedText = "",
+        hourlyLevelsM = emptyList(),
+        downstreamTowns = downstreamTowns,
+        tributaryOf = tributaryOf,
+        marksEstimated = estimated,
+        feed = feed
     )
 
     fun regionById(id: String): SriLankaRegion? =
@@ -1298,7 +1406,24 @@ class SriLankaWeatherRepository {
     }
 
     /** Last live river readings saved on this phone, or null. */
-    fun cachedStations(): List<RiverGaugeStation>? = lastLiveStations ?: OfflineCache.loadStations()
+    /**
+     * Last saved readings, with every current gauge present: a copy saved by an older version of the app may
+     * lack the newer gauges, so those come from the reference list (shown as "no recent reading").
+     */
+    fun cachedStations(): List<RiverGaugeStation>? {
+        val saved = lastLiveStations ?: OfflineCache.loadStations() ?: return null
+        val byId = saved.associateBy { it.id }
+        return baseStations.map { base ->
+            byId[base.id]?.copy(
+                stationName = base.stationName,
+                riverName = base.riverName,
+                district = base.district,
+                tributaryOf = base.tributaryOf,
+                marksEstimated = base.marksEstimated,
+                feed = base.feed
+            ) ?: base.copy(hasLiveReading = false, lastUpdatedText = "")
+        }
+    }
 
     /**
      * Weather for the selected town (or an exact GPS fix) rather than the district centre — hill-country
@@ -1494,7 +1619,37 @@ class SriLankaWeatherRepository {
         "deduru_moragaswewa" to "Moragaswewa",
         "maha_giriulla" to "Giriulla",
         "maha_badalgama" to "Badalgama",
-        "attanagalu_dunamale" to "Dunamale"
+        "attanagalu_dunamale" to "Dunamale",
+        "nilwala_thalgahagoda" to "Thalgahagoda",
+        "mahaweli_thaldena" to "Thaldena",
+        "kirindi_kudaoya" to "Kuda Oya",
+        "maduru_padiyathalawa" to "Padiyathalawa",
+        "mee_galgamuwa" to "Galgamuwa",
+        "ma_yakawewa" to "Yaka Wewa"
+    )
+
+    // Station names in the waterlevels.lk feed for the HMIS and RiverNet gauges
+    private val waterLevelsGaugeNames: Map<String, String> = mapOf(
+        "kelani_karawanella" to "Karawanella Bridge",
+        "mahaweli_mahiyangana" to "Mahiyangana Bridge",
+        "maduru_vadamunai" to "Vadamunai Bridge",
+        "maduru_punani" to "Punani Anicut",
+        "maduru_pulipanchakal" to "Pulipanchakal Bridge",
+        "mundeni_galodaya" to "Galodaya Bridge",
+        "mundeni_lavanai" to "Lavanai Aru Bridge",
+        "magalawatavan_mullamunai" to "Mullamunai Bridge",
+        "andella_maalayarkattu" to "Maalayarkattu Bridge",
+        "andella_rajagalathenna" to "Rajagalathenna Bridge",
+        "kelani_mapitigama" to "Mapitigama",
+        "kelani_pugoda" to "Pugoda",
+        "kalu_kuruvita" to "Kuru Ganga (Kuruvita)",
+        "kalu_elapatha" to "Niriella Ganga (Elapatha)",
+        "kalu_ayagama" to "Galathura Oya (Ayagama)",
+        "kalu_pelmadulla" to "Denawaka Ganga (Pelmadulla)",
+        "kalu_kalawana" to "Kukule Ganga (Kalawana)",
+        "kalu_kahawatta" to "Wey Ganga (Kahawaththa)",
+        "uruwal_miriswatta" to "Miriswatta",
+        "wattala_kaluela" to "Wattala"
     )
 
     // Gauges the Irrigation Dept publishes in feet (hydrostations "Unit" column, checked Oct 2026).
@@ -1551,6 +1706,62 @@ class SriLankaWeatherRepository {
         }
     }
 
+    /** Latest reading of every gauge waterlevels.lk lists, by lower-cased station name; null if unreachable. */
+    private suspend fun fetchWaterLevelsReadings(): Map<String, WaterLevelsStation>? = try {
+        WeatherNetworkClient.waterLevelsService.getLevels().stations
+            ?.filter { it.station != null }
+            ?.associateBy { it.station!!.trim().lowercase(Locale.US) }
+            ?.takeIf { it.isNotEmpty() }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun parseIsoMillis(text: String?): Long? {
+        if (text.isNullOrBlank()) return null
+        for (pattern in listOf("yyyy-MM-dd'T'HH:mm:ss.SSSX", "yyyy-MM-dd'T'HH:mm:ssX")) {
+            val parsed = runCatching {
+                SimpleDateFormat(pattern, Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.parse(text)
+            }.getOrNull()
+            if (parsed != null) return parsed.time
+        }
+        return null
+    }
+
+    /**
+     * [station] updated from a waterlevels.lk reading. That feed gives the latest level and the rate over the
+     * last 3 hours but no 24-hour series, so the graph stays empty for these gauges. The alert and flood
+     * levels stay the built-in ones (HMIS / RiverNet published levels, or the app's estimates).
+     */
+    private fun RiverGaugeStation.withWaterLevelsReading(reading: WaterLevelsStation, discharge: Double): RiverGaugeStation? {
+        if (reading.status == "stale") return null
+        val published = reading.published
+        // The feed's "level" is always feet; "published" keeps the agency's own number and unit
+        val levelM = when {
+            published?.level != null && published.unit == "m" -> published.level
+            reading.levelFt != null -> reading.levelFt * FEET_TO_METRES
+            else -> return null
+        }
+        val readingTime = parseIsoMillis(reading.observedAt) ?: return null
+        // Older than 3 hours: treat like the app treats a silent Irrigation gauge
+        if (System.currentTimeMillis() - readingTime > 3 * 3_600_000L) return null
+        val changeM = (reading.changePerHourFt ?: 0.0) * FEET_TO_METRES
+        return copy(
+            currentLevelM = levelM,
+            previousLevelM = levelM - changeM,
+            sourceUnit = if (published?.unit == "ft") "ft" else "m",
+            catchmentRainMm24h = reading.rain?.fallen24hMm ?: 0.0,
+            rainMeasured = reading.rain?.fallen24hMm != null,
+            dischargeM3s = discharge,
+            hourlyLevelsM = listOf(levelM),
+            history24hM = emptyList(),
+            hasLiveReading = true,
+            readingTimeMillis = readingTime,
+            lastUpdatedText = slstFormat("HH:mm").format(Date(readingTime))
+        )
+    }
+
     suspend fun fetchLiveRiverStations(selectedRegion: SriLankaRegion): List<RiverGaugeStation> =
         withContext(Dispatchers.IO) {
             val readingsByGauge = try {
@@ -1561,6 +1772,7 @@ class SriLankaWeatherRepository {
             } catch (_: Exception) {
                 null
             }
+            val waterLevels = fetchWaterLevelsReadings()
             val discharges = try {
                 fetchStationDischarges()
             } catch (_: Exception) {
@@ -1568,21 +1780,37 @@ class SriLankaWeatherRepository {
             }
             val feetGauges = feetGaugeNames()
 
-            if (readingsByGauge.isNullOrEmpty()) {
+            if (readingsByGauge.isNullOrEmpty() && waterLevels.isNullOrEmpty()) {
                 cachedStations()?.let { return@withContext it }
+            }
+            val cachedById = if (readingsByGauge.isNullOrEmpty() || waterLevels.isNullOrEmpty()) {
+                cachedStations()?.associateBy { it.id }.orEmpty()
+            } else {
+                emptyMap()
             }
 
             val stations = baseStations.mapIndexed { idx, station ->
                 val discharge = discharges?.getOrNull(idx)?.takeIf { it >= 0.0 } ?: station.dischargeM3s
+                val noReading = station.copy(dischargeM3s = discharge, hasLiveReading = false, lastUpdatedText = "")
+
+                if (station.feed != GaugeFeed.IRRIGATION) {
+                    if (waterLevels.isNullOrEmpty()) return@mapIndexed cachedById[station.id] ?: noReading
+                    val reading = waterLevelsGaugeNames[station.id]?.let { waterLevels[it.lowercase(Locale.US)] }
+                    return@mapIndexed reading?.let { station.withWaterLevelsReading(it, discharge) } ?: noReading
+                }
+
                 val gaugeName = irrigationGaugeNames[station.id]?.lowercase(Locale.US)
                 val history = gaugeName?.let { readingsByGauge?.get(it) }
                 val latest = history?.lastOrNull()
                 if (history == null || latest == null) {
-                    return@mapIndexed station.copy(
-                        dischargeM3s = discharge,
-                        hasLiveReading = false,
-                        lastUpdatedText = ""
-                    )
+                    // The Irrigation service has a shared request quota and can refuse on busy flood days;
+                    // waterlevels.lk carries the same gauges, so use its latest reading before giving up
+                    if (readingsByGauge.isNullOrEmpty() && gaugeName != null) {
+                        val fallback = waterLevels?.get(gaugeName) ?: waterLevels?.get(gaugeName.replace("rathnapura", "ratnapura"))
+                        fallback?.let { station.withWaterLevelsReading(it, discharge) }?.let { return@mapIndexed it }
+                        return@mapIndexed cachedById[station.id] ?: noReading
+                    }
+                    return@mapIndexed noReading
                 }
                 // The feed sends raw numbers in the gauge's own unit; everything in the app is metres
                 val inFeet = gaugeName in feetGauges
@@ -1605,12 +1833,63 @@ class SriLankaWeatherRepository {
                     lastUpdatedText = readingTime
                 )
             }
-            if (!readingsByGauge.isNullOrEmpty()) {
+            if (stations.any { it.hasLiveReading }) {
                 lastLiveStations = stations
                 OfflineCache.saveStations(stations)
             }
             stations
         }
+
+    // ---- Reservoirs ----
+
+    @Volatile
+    private var lastReservoirs: List<Reservoir>? = null
+
+    @Volatile
+    private var lastReservoirFetchMillis: Long = 0L
+
+    fun cachedReservoirs(): List<Reservoir>? = lastReservoirs ?: OfflineCache.loadReservoirs()
+
+    /** Storage and releases of the reservoirs (daily reports); the saved copy if offline, empty if none. */
+    suspend fun fetchReservoirs(): List<Reservoir> = withContext(Dispatchers.IO) {
+        // The reports change once or twice a day, so don't ask more than every 30 minutes
+        lastReservoirs?.let { if (System.currentTimeMillis() - lastReservoirFetchMillis < 30 * 60_000L) return@withContext it }
+        val live = try {
+            WeatherNetworkClient.waterLevelsService.getReservoirs().reservoirs.orEmpty().mapNotNull { dto ->
+                val name = dto.name?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                Reservoir(
+                    id = dto.id ?: name.lowercase(Locale.US).replace(' ', '-'),
+                    name = name,
+                    river = dto.river?.takeIf { it.isNotBlank() },
+                    district = dto.district?.takeIf { it.isNotBlank() },
+                    type = dto.type ?: "major",
+                    status = when (dto.status) {
+                        "spilling" -> ReservoirStatus.SPILLING
+                        "releasing" -> ReservoirStatus.RELEASING
+                        "holding" -> ReservoirStatus.HOLDING
+                        else -> ReservoirStatus.NO_DATA
+                    },
+                    storagePercent = dto.storagePercent?.takeIf { it >= 0.0 },
+                    flowCusecs = dto.flow?.cusecs?.takeIf { it >= 0.0 },
+                    flowKind = dto.flow?.kind,
+                    readingDay = dto.readingDay,
+                    agency = dto.source
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            emptyList()
+        }
+        if (live.isNotEmpty()) {
+            lastReservoirs = live
+            lastReservoirFetchMillis = System.currentTimeMillis()
+            OfflineCache.saveReservoirs(live)
+            live
+        } else {
+            cachedReservoirs().orEmpty()
+        }
+    }
 
     // Towns shown on the island overview map (name, district)
     private val islandMapTowns = listOf(

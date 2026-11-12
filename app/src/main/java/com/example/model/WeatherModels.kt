@@ -425,6 +425,51 @@ data class WeatherAlert(
 )
 
 const val FEET_TO_METRES = 0.3048
+const val CUSECS_TO_M3S = 0.0283168
+
+/** Who runs the gauge the reading comes from. */
+enum class GaugeFeed(@StringRes val labelRes: Int) {
+    // Irrigation Department river-gauge service (ArcGIS), read directly
+    IRRIGATION(R.string.feed_irrigation),
+    // Hydro-meteorological Information System (hmis.gov.lk) sensors, read through waterlevels.lk
+    HMIS(R.string.feed_hmis),
+    // RiverNet.lk sensors, read through waterlevels.lk
+    RIVERNET(R.string.feed_rivernet)
+}
+
+enum class ReservoirStatus(@StringRes val labelRes: Int, val color: Color, val rank: Int) {
+    SPILLING(R.string.reservoir_spilling, WarningAmber, 3),
+    RELEASING(R.string.reservoir_releasing, AdvisoryYellow, 2),
+    HOLDING(R.string.reservoir_holding, SafeEmerald, 1),
+    NO_DATA(R.string.reservoir_no_data, Color.Gray, 0)
+}
+
+/** A reservoir (tank or dam) with its storage and any water it is letting out today. */
+data class Reservoir(
+    val id: String,
+    val name: String,
+    val river: String?,
+    val district: String?,
+    // "major", "medium" or "mahaweli" (Mahaweli Authority / CEB)
+    val type: String,
+    val status: ReservoirStatus,
+    val storagePercent: Double?,
+    // Water let out, in cusecs (cubic feet per second) as the agencies publish it
+    val flowCusecs: Double?,
+    // "spill", "outlets" or "downstream"
+    val flowKind: String?,
+    val readingDay: String?,
+    val agency: String?
+) {
+    val flowM3s: Double? get() = flowCusecs?.times(CUSECS_TO_M3S)
+
+    /** Full enough that heavy rain will make it spill: the app's own watch mark, as reservoirs have no official one. */
+    val isNearlyFull: Boolean get() = (storagePercent ?: 0.0) >= NEARLY_FULL_PERCENT
+
+    companion object {
+        const val NEARLY_FULL_PERCENT = 90.0
+    }
+}
 
 data class RiverGaugeStation(
     val id: String,
@@ -454,7 +499,13 @@ data class RiverGaugeStation(
     // True only when the level came from the Irrigation Dept feed (not the built-in reference values)
     val hasLiveReading: Boolean = false,
     // When the latest gauge reading was taken
-    val readingTimeMillis: Long? = null
+    val readingTimeMillis: Long? = null,
+    // True when no official alert/flood levels exist and the app set them from the gauge's own past readings
+    val marksEstimated: Boolean = false,
+    // Where the live reading comes from
+    val feed: GaugeFeed = GaugeFeed.IRRIGATION,
+    // False when the gauge has no rain sensor, so catchmentRainMm24h is not a measurement
+    val rainMeasured: Boolean = true
 ) {
     /** Level as published by the Irrigation Dept, e.g. "12.1 ft", for gauges people know in feet. */
     val publishedLevelText: String?
