@@ -190,7 +190,15 @@
     <string name="gauge_in_feet_note">This gauge is published in feet; it is shown here in metres.</string>
     <string name="catchment_rain_flow">Rain in the catchment (24h): %1$d mm · Flow: %2$d m³/s</string>
     <string name="river_flow_only">Flow: %1$d m³/s</string>
-    <string name="downstream_towns">Downstream: %1$s</string>
+    <string name="areas_may_flood">Areas that may flood</string>
+    <string name="areas_may_flood_note">Towns along the river below this gauge. When the river rises, low-lying land near the banks floods first.</string>
+    <string name="areas_at_risk_now">The river is high here. Towns along it below this gauge may flood:</string>
+    <string name="show_on_map">Show on map</string>
+    <string name="more_info">More info</string>
+    <string name="see_river_gauges">%1$s gauges</string>
+    <string name="reservoir_downstream_note">Water let out of this reservoir flows down %1$s. The gauges on %1$s show the towns along it.</string>
+    <string name="reservoir_more_info_note">More info shows its storage over time and the places downstream (waterlevels.lk).</string>
+    <string name="alert_areas_at_risk">Areas at risk: %1$s</string>
     <string name="gauge_read_at">Gauge read at %1$s</string>
     <string name="level_alert">Alert</string>
     <string name="level_minor">Minor</string>

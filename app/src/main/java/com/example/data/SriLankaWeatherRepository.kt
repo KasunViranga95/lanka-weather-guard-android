@@ -471,6 +471,69 @@ class SriLankaWeatherRepository {
     )
 
     // Comprehensive RiverWatch.LK / Department of Irrigation Gauging Stations across 18 Sri Lankan River Basins
+    // Each gauge's page on waterlevels.lk (history, forecast and the towns along the river), checked Nov 2026
+    private val gaugeInfoPaths: Map<String, String> = mapOf(
+        "kelani_nagalagam" to "kelani-ganga/nagalagam-street",
+        "kelani_hanwella" to "kelani-ganga/hanwella",
+        "kelani_glencorse" to "kelani-ganga/glencourse",
+        "kelani_kitulgala" to "kelani-ganga/kithulgala",
+        "kelani_holombuwa" to "kelani-ganga/holombuwa",
+        "kelani_deraniyagala" to "kelani-ganga/deraniyagala",
+        "kelani_norwood" to "kelani-ganga/norwood",
+        "kalu_ratnapura" to "kalu-ganga/rathnapura",
+        "kalu_ellagawa" to "kalu-ganga/ellagawa",
+        "kalu_putupaula" to "kalu-ganga/putupaula",
+        "kalu_millakanda" to "kalu-ganga/kalawellawa-millakanda",
+        "kalu_magura" to "kalu-ganga/magura",
+        "gin_baddegama" to "gin-ganga/baddegama",
+        "gin_tawalama" to "gin-ganga/thawalama",
+        "nilwala_panadugama" to "nilwala-ganga/panadugama",
+        "nilwala_pitabeddara" to "nilwala-ganga/pitabeddara",
+        "nilwala_urawa" to "nilwala-ganga/urawa",
+        "walawe_moraketiya" to "walawe-ganga/moraketiya",
+        "kirindi_thanamalwila" to "kirindi-oya/thanamalwila",
+        "kirindi_wellawaya" to "kirindi-oya/wellawaya",
+        "menik_kataragama" to "menik-ganga/katharagama",
+        "kumbukkan_nakkala" to "kumbukkan-oya/nakkala",
+        "heda_siyambalanduwa" to "heda-oya/siyambalanduwa",
+        "mahaweli_peradeniya" to "mahaweli-ganga/peradeniya",
+        "mahaweli_nawalapitiya" to "mahaweli-ganga/nawalapitiya",
+        "mahaweli_weragantota" to "mahaweli-ganga/weraganthota",
+        "mahaweli_manampitiya" to "mahaweli-ganga/manampitiya",
+        "yan_horowpothana" to "yan-oya/horowpothana",
+        "malwathu_thanthirimale" to "malwathu-oya/thanthirimale",
+        "deduru_moragaswewa" to "deduru-oya/moragaswewa",
+        "maha_giriulla" to "maha-oya/giriulla",
+        "maha_badalgama" to "maha-oya/badalgama",
+        "attanagalu_dunamale" to "aththanagalu-oya/dunamale",
+        "nilwala_thalgahagoda" to "nilwala-ganga/thalgahagoda",
+        "mahaweli_thaldena" to "mahaweli-ganga/thaldena",
+        "kirindi_kudaoya" to "kirindi-oya/kuda-oya",
+        "maduru_padiyathalawa" to "maduru-oya/padiyathalawa",
+        "mee_galgamuwa" to "mee-oya/galgamuwa",
+        "ma_yakawewa" to "ma-oya/yaka-wewa",
+        "kelani_karawanella" to "kelani-ganga/karawanella-bridge",
+        "mahaweli_mahiyangana" to "mahaweli-ganga/mahiyangana-bridge",
+        "maduru_vadamunai" to "maduru-oya/vadamunai-bridge",
+        "maduru_punani" to "maduru-oya/punani-anicut",
+        "maduru_pulipanchakal" to "maduru-oya/pulipanchakal-bridge",
+        "mundeni_galodaya" to "mundeni-aru/galodaya-bridge",
+        "mundeni_lavanai" to "mundeni-aru/lavanai-aru-bridge",
+        "magalawatavan_mullamunai" to "magalawatavan-aru/mullamunai-bridge",
+        "andella_maalayarkattu" to "andella-oya/maalayarkattu-bridge",
+        "andella_rajagalathenna" to "andella-oya/rajagalathenna-bridge",
+        "kelani_mapitigama" to "kelani-ganga/mapitigama",
+        "kelani_pugoda" to "kelani-ganga/pugoda",
+        "kalu_kuruvita" to "kalu-ganga/kuru-ganga-kuruvita",
+        "kalu_elapatha" to "kalu-ganga/niriella-ganga-elapatha",
+        "kalu_ayagama" to "kalu-ganga/galathura-oya-ayagama",
+        "kalu_pelmadulla" to "kalu-ganga/denawaka-ganga-pelmadulla",
+        "kalu_kalawana" to "kalu-ganga/kukule-ganga-kalawana",
+        "kalu_kahawatta" to "kalu-ganga/wey-ganga-kahawaththa",
+        "uruwal_miriswatta" to "uruwal-oya/miriswatta",
+        "wattala_kaluela" to "wattala-kalu-ela/wattala"
+    )
+
     private val baseStations: List<RiverGaugeStation> = listOf(
         // ================= 1. KELANI GANGA BASIN (RB 01) =================
         RiverGaugeStation(
@@ -1285,7 +1348,7 @@ class SriLankaWeatherRepository {
             2.40, 2.70, 4.10, 1.3, listOf("Miriswatta", "Mudungoda", "Yakkala"), feed = GaugeFeed.RIVERNET, estimated = true),
         gauge("wattala_kaluela", "Wattala", "Wattala Kalu Ela", "", "Gampaha", 6.9912, 79.8922,
             2.90, 3.20, 4.00, 2.5, listOf("Wattala", "Hendala", "Mabola"), feed = GaugeFeed.RIVERNET, estimated = true)
-    )
+    ).map { st -> st.copy(infoUrl = gaugeInfoPaths[st.id]?.let { "https://waterlevels.lk/$it" }) }
 
     /** A gauge added from the extra feeds, with its reference (typical) level shown until live data arrives. */
     private fun gauge(
@@ -1420,7 +1483,9 @@ class SriLankaWeatherRepository {
                 district = base.district,
                 tributaryOf = base.tributaryOf,
                 marksEstimated = base.marksEstimated,
-                feed = base.feed
+                feed = base.feed,
+                downstreamTowns = base.downstreamTowns,
+                infoUrl = base.infoUrl
             ) ?: base.copy(hasLiveReading = false, lastUpdatedText = "")
         }
     }
@@ -1873,7 +1938,8 @@ class SriLankaWeatherRepository {
                     flowCusecs = dto.flow?.cusecs?.takeIf { it >= 0.0 },
                     flowKind = dto.flow?.kind,
                     readingDay = dto.readingDay,
-                    agency = dto.source
+                    agency = dto.source,
+                    infoUrl = dto.url?.takeIf { it.startsWith("https://") }
                 )
             }
         } catch (e: CancellationException) {

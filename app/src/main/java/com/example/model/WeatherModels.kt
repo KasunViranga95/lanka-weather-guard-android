@@ -459,7 +459,9 @@ data class Reservoir(
     // "spill", "outlets" or "downstream"
     val flowKind: String?,
     val readingDay: String?,
-    val agency: String?
+    val agency: String?,
+    // Web page with this reservoir's history and releases (waterlevels.lk)
+    val infoUrl: String? = null
 ) {
     val flowM3s: Double? get() = flowCusecs?.times(CUSECS_TO_M3S)
 
@@ -505,7 +507,9 @@ data class RiverGaugeStation(
     // Where the live reading comes from
     val feed: GaugeFeed = GaugeFeed.IRRIGATION,
     // False when the gauge has no rain sensor, so catchmentRainMm24h is not a measurement
-    val rainMeasured: Boolean = true
+    val rainMeasured: Boolean = true,
+    // Web page with this gauge's history and forecast (waterlevels.lk), if there is one
+    val infoUrl: String? = null
 ) {
     /** Level as published by the Irrigation Dept, e.g. "12.1 ft", for gauges people know in feet. */
     val publishedLevelText: String?

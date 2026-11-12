@@ -84,7 +84,8 @@ object AlertEngine {
                         res.getString(st.floodStatus.labelRes),
                         res.getString(st.trend.labelRes)
                     ) + if (st.marksEstimated) " (${res.getString(R.string.estimated_levels_short)})" else ""
-                }
+                } + sorted.flatMap { it.downstreamTowns }.distinct().take(MAX_AREAS_LISTED).takeIf { it.isNotEmpty() }
+                    ?.let { "\n" + res.getString(R.string.alert_areas_at_risk, it.joinToString(", ")) }.orEmpty()
                 val actions = when (worst.floodStatus) {
                     FloodStatus.MAJOR_FLOOD -> listOf(
                         res.getString(R.string.action_river_major_1),
@@ -267,4 +268,7 @@ object AlertEngine {
             )
         }
     }
+
+    // Towns named in a river alert, so notifications stay readable
+    private const val MAX_AREAS_LISTED = 6
 }
