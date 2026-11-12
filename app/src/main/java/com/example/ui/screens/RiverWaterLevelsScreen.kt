@@ -1,7 +1,15 @@
 package com.example.ui.screens
 
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material.icons.filled.Water
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -120,6 +128,8 @@ fun RiverWaterLevelsScreen(
     var statusFilter by rememberSaveable { mutableStateOf(RiverStatusFilter.ALL) }
     var reservoirFilter by rememberSaveable { mutableStateOf(ReservoirFilter.ALL) }
     var showReservoirs by rememberSaveable { mutableStateOf(false) }
+    var expandedReservoirId by rememberSaveable { mutableStateOf<String?>(null) }
+    val gaugedRivers = remember(stations) { stations.map { it.riverName }.toSet() }
     var expandedStationId by rememberSaveable { mutableStateOf<String?>(null) }
     val res = LocalContext.current.resources
 
@@ -187,7 +197,17 @@ fun RiverWaterLevelsScreen(
                 reservoirs = reservoirs,
                 searchQuery = searchQuery,
                 filter = reservoirFilter,
-                onFilterChange = { reservoirFilter = it }
+                onFilterChange = { reservoirFilter = it },
+                gaugedRivers = gaugedRivers,
+                expandedId = expandedReservoirId,
+                onToggle = { id -> expandedReservoirId = if (expandedReservoirId == id) null else id },
+                onShowRiverGauges = { river ->
+                    // Jump to the Rivers view showing only that river's gauges
+                    onSearchQueryChanged("")
+                    onBasinFilterSelected(river)
+                    statusFilter = RiverStatusFilter.ALL
+                    showReservoirs = false
+                }
             )
             return@LazyColumn
         }
@@ -305,7 +325,7 @@ private fun StationRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = live) { onToggle() }
+            .clickable { onToggle() }
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .testTag("river_station_card_${station.id}"),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -353,77 +373,76 @@ private fun StationRow(
                         Text("($it)", style = MaterialTheme.typography.labelSmall, color = AdaptiveSecondaryText)
                     }
                 }
-                Icon(
-                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = stringResource(if (expanded) R.string.hide_details else R.string.show_details),
-                    tint = AdaptiveSecondaryText
-                )
             } else {
                 Text("—", style = MaterialTheme.typography.titleMedium, color = AdaptiveSecondaryText)
             }
+            Icon(
+                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = stringResource(if (expanded) R.string.hide_details else R.string.show_details),
+                tint = AdaptiveSecondaryText
+            )
         }
 
-        AnimatedVisibility(visible = expanded && live) {
+        AnimatedVisibility(visible = expanded) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    StatusPill(text = stringResource(status.labelRes), color = status.color)
-                    Text(
-                        text = stringResource(
-                            if (station.feed == GaugeFeed.IRRIGATION) R.string.change_last_hour else R.string.change_per_hour_3h,
-                            stringResource(station.trend.labelRes),
-                            String.format(Locale.US, "%+.2f", station.deltaM)
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = AdaptiveSecondaryText
-                    )
-                }
-
-                RiverThresholdBar(station = station)
-
-                if (station.marksEstimated) {
-                    Text(stringResource(R.string.estimated_levels_note), style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
-                }
-
-                if (station.sourceUnit == "ft") {
-                    Text(stringResource(R.string.gauge_in_feet_note), style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
-                }
-
-                if (station.history24hM.isNotEmpty()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(AdaptiveElevatedColor)
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        HydrographTimeRangeSelector(
-                            selectedRange = timeRange,
-                            onRangeSelected = onTimeRangeSelected,
-                            stationIdTagPrefix = station.id
+                if (live) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        StatusPill(text = stringResource(status.labelRes), color = status.color)
+                        Text(
+                            text = stringResource(
+                                if (station.feed == GaugeFeed.IRRIGATION) R.string.change_last_hour else R.string.change_per_hour_3h,
+                                stringResource(station.trend.labelRes),
+                                String.format(Locale.US, "%+.2f", station.deltaM)
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AdaptiveSecondaryText
                         )
-                        RiverHydrographCurve(station = station, timeRange = timeRange)
                     }
-                } else {
-                    Text(stringResource(R.string.no_graph_latest_only), style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
-                }
 
-                Text(
-                    text = if (station.rainMeasured) {
-                        stringResource(R.string.catchment_rain_flow, station.catchmentRainMm24h.roundToInt(), station.dischargeM3s.roundToInt())
+                    RiverThresholdBar(station = station)
+
+                    if (station.marksEstimated) {
+                        Text(stringResource(R.string.estimated_levels_note), style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
+                    }
+
+                    if (station.sourceUnit == "ft") {
+                        Text(stringResource(R.string.gauge_in_feet_note), style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
+                    }
+
+                    if (station.history24hM.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(AdaptiveElevatedColor)
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            HydrographTimeRangeSelector(
+                                selectedRange = timeRange,
+                                onRangeSelected = onTimeRangeSelected,
+                                stationIdTagPrefix = station.id
+                            )
+                            RiverHydrographCurve(station = station, timeRange = timeRange)
+                        }
                     } else {
-                        stringResource(R.string.river_flow_only, station.dischargeM3s.roundToInt())
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AdaptivePrimaryText
-                )
-                if (station.downstreamTowns.isNotEmpty()) {
+                        Text(stringResource(R.string.no_graph_latest_only), style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
+                    }
+
                     Text(
-                        text = stringResource(R.string.downstream_towns, station.downstreamTowns.joinToString(", ")),
+                        text = if (station.rainMeasured) {
+                            stringResource(R.string.catchment_rain_flow, station.catchmentRainMm24h.roundToInt(), station.dischargeM3s.roundToInt())
+                        } else {
+                            stringResource(R.string.river_flow_only, station.dischargeM3s.roundToInt())
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = AdaptivePrimaryText
                     )
                 }
+
+                AffectedAreas(station)
+                GaugePlaceLinks(station)
+
                 station.readingTimeMillis?.let {
                     Text(
                         text = stringResource(R.string.gauge_read_at, WeatherFormat.time(res, it)) + " · " +
@@ -435,6 +454,75 @@ private fun StationRow(
             }
         }
     }
+}
+
+/** Towns below the gauge that the river reaches; called out in the gauge's colour when the river is high. */
+@Composable
+private fun AffectedAreas(station: RiverGaugeStation) {
+    if (station.downstreamTowns.isEmpty()) return
+    val high = station.hasLiveReading && station.floodStatus != FloodStatus.NORMAL
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (high) station.floodStatus.color.copy(alpha = 0.12f) else AdaptiveElevatedColor)
+            .padding(12.dp)
+            .testTag("affected_areas_${station.id}"),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.areas_may_flood),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (high) station.floodStatus.color else AdaptivePrimaryText,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = stringResource(if (high) R.string.areas_at_risk_now else R.string.areas_may_flood_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = AdaptiveSecondaryText
+        )
+        Text(
+            text = station.downstreamTowns.joinToString(" · "),
+            style = MaterialTheme.typography.bodyMedium,
+            color = AdaptivePrimaryText,
+            fontWeight = if (high) FontWeight.SemiBold else FontWeight.Normal
+        )
+    }
+}
+
+/** Opens the gauge's spot in the maps app, and its page on waterlevels.lk. */
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun GaugePlaceLinks(station: RiverGaugeStation) {
+    val open = rememberSafeUriOpener()
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(
+            onClick = { open(mapsUrlForPoint(station.latitude, station.longitude)) },
+            modifier = Modifier.testTag("gauge_map_${station.id}")
+        ) {
+            Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text(stringResource(R.string.show_on_map), modifier = Modifier.padding(start = 8.dp))
+        }
+        station.infoUrl?.let { url ->
+            OutlinedButton(onClick = { open(url) }, modifier = Modifier.testTag("gauge_info_${station.id}")) {
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(stringResource(R.string.more_info), modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+    }
+}
+
+private fun mapsUrlForPoint(latitude: Double, longitude: Double): String =
+    String.format(Locale.US, "https://www.google.com/maps/search/?api=1&query=%.5f,%.5f", latitude, longitude)
+
+private fun mapsUrlForSearch(query: String): String =
+    "https://www.google.com/maps/search/?api=1&query=" + Uri.encode(query)
+
+/** Opens a link in the browser or maps app; does nothing if the phone has no app for it. */
+@Composable
+private fun rememberSafeUriOpener(): (String) -> Unit {
+    val uriHandler = LocalUriHandler.current
+    return remember(uriHandler) { { url: String -> runCatching { uriHandler.openUri(url) } } }
 }
 
 private enum class ReservoirFilter(val labelRes: Int) {
@@ -462,7 +550,11 @@ private fun LazyListScope.reservoirItems(
     reservoirs: List<Reservoir>,
     searchQuery: String,
     filter: ReservoirFilter,
-    onFilterChange: (ReservoirFilter) -> Unit
+    onFilterChange: (ReservoirFilter) -> Unit,
+    gaugedRivers: Set<String>,
+    expandedId: String?,
+    onToggle: (String) -> Unit,
+    onShowRiverGauges: (String) -> Unit
 ) {
     item {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -520,7 +612,13 @@ private fun LazyListScope.reservoirItems(
             )
             list.forEachIndexed { idx, reservoir ->
                 if (idx > 0) HorizontalDivider(color = AdaptiveBorderColor, modifier = Modifier.padding(horizontal = 16.dp))
-                ReservoirRow(reservoir)
+                ReservoirRow(
+                    reservoir = reservoir,
+                    expanded = expandedId == reservoir.id,
+                    onToggle = { onToggle(reservoir.id) },
+                    riverHasGauges = reservoir.river in gaugedRivers,
+                    onShowRiverGauges = onShowRiverGauges
+                )
             }
         }
     }
@@ -536,10 +634,17 @@ private fun LazyListScope.reservoirItems(
 }
 
 @Composable
-private fun ReservoirRow(reservoir: Reservoir) {
+private fun ReservoirRow(
+    reservoir: Reservoir,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    riverHasGauges: Boolean,
+    onShowRiverGauges: (String) -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onToggle() }
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .testTag("reservoir_${reservoir.id}"),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -578,6 +683,11 @@ private fun ReservoirRow(reservoir: Reservoir) {
                     }
                 }
             }
+            Icon(
+                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = stringResource(if (expanded) R.string.hide_details else R.string.show_details),
+                tint = AdaptiveSecondaryText
+            )
         }
         reservoir.storagePercent?.let { pct ->
             Box(
@@ -616,6 +726,52 @@ private fun ReservoirRow(reservoir: Reservoir) {
                 style = MaterialTheme.typography.labelSmall,
                 color = AdaptiveSecondaryText
             )
+        }
+        AnimatedVisibility(visible = expanded) {
+            ReservoirDetails(reservoir, riverHasGauges, onShowRiverGauges)
+        }
+    }
+}
+
+/** Where the reservoir is, where its water goes, and its page on waterlevels.lk. */
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun ReservoirDetails(reservoir: Reservoir, riverHasGauges: Boolean, onShowRiverGauges: (String) -> Unit) {
+    val open = rememberSafeUriOpener()
+    val lettingOut = reservoir.status == ReservoirStatus.SPILLING || reservoir.status == ReservoirStatus.RELEASING
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+        reservoir.river?.let { river ->
+            Text(
+                text = stringResource(R.string.reservoir_downstream_note, river),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (lettingOut) reservoir.status.color else AdaptivePrimaryText,
+                fontWeight = if (lettingOut) FontWeight.SemiBold else FontWeight.Normal
+            )
+        }
+        if (reservoir.infoUrl != null) {
+            Text(stringResource(R.string.reservoir_more_info_note), style = MaterialTheme.typography.bodySmall, color = AdaptiveSecondaryText)
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = { open(mapsUrlForSearch(listOfNotNull("${reservoir.name} reservoir", reservoir.district, "Sri Lanka").joinToString(", "))) },
+                modifier = Modifier.testTag("reservoir_map_${reservoir.id}")
+            ) {
+                Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(stringResource(R.string.show_on_map), modifier = Modifier.padding(start = 8.dp))
+            }
+            reservoir.infoUrl?.let { url ->
+                OutlinedButton(onClick = { open(url) }, modifier = Modifier.testTag("reservoir_info_${reservoir.id}")) {
+                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(stringResource(R.string.more_info), modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+            val river = reservoir.river
+            if (river != null && riverHasGauges) {
+                OutlinedButton(onClick = { onShowRiverGauges(river) }, modifier = Modifier.testTag("reservoir_river_${reservoir.id}")) {
+                    Icon(Icons.Default.Water, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(stringResource(R.string.see_river_gauges, river), modifier = Modifier.padding(start = 8.dp))
+                }
+            }
         }
     }
 }

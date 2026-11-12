@@ -189,7 +189,15 @@
     <string name="gauge_in_feet_note">இந்த அளவீடு அடிகளில் வெளியிடப்படுகிறது; இங்கே மீட்டரில் காட்டப்படுகிறது.</string>
     <string name="catchment_rain_flow">நீரேந்து பகுதி மழை (24 மணி): %1$d மி.மீ. · நீரோட்டம்: %2$d m³/s</string>
     <string name="river_flow_only">நீரோட்டம்: %1$d m³/s</string>
-    <string name="downstream_towns">கீழ்நிலைப் பகுதிகள்: %1$s</string>
+    <string name="areas_may_flood">வெள்ளம் ஏற்படக்கூடிய பகுதிகள்</string>
+    <string name="areas_may_flood_note">இந்த அளவீட்டுக்குக் கீழே ஆற்றோரம் உள்ள நகரங்கள். ஆறு உயரும்போது கரையோரத் தாழ்நிலங்கள் முதலில் வெள்ளத்தில் மூழ்கும்.</string>
+    <string name="areas_at_risk_now">இங்கே ஆறு உயர்ந்துள்ளது. இந்த அளவீட்டுக்குக் கீழே ஆற்றோரம் உள்ள நகரங்களில் வெள்ளம் ஏற்படலாம்:</string>
+    <string name="show_on_map">வரைபடத்தில் காட்டு</string>
+    <string name="more_info">மேலும் தகவல்</string>
+    <string name="see_river_gauges">%1$s அளவீடுகள்</string>
+    <string name="reservoir_downstream_note">இந்த நீர்த்தேக்கத்திலிருந்து திறந்துவிடப்படும் நீர் %1$s வழியாகப் பாய்கிறது. %1$s இன் அளவீடுகள் அதன் கரையோர நகரங்களைக் காட்டும்.</string>
+    <string name="reservoir_more_info_note">மேலும் தகவலில் காலப்போக்கில் நீர் இருப்பும் கீழ்நிலைப் பகுதிகளும் காட்டப்படும் (waterlevels.lk).</string>
+    <string name="alert_areas_at_risk">ஆபத்தான பகுதிகள்: %1$s</string>
     <string name="gauge_read_at">அளவீடு எடுக்கப்பட்டது %1$s</string>
     <string name="level_alert">எச்சரிக்கை</string>
     <string name="level_minor">சிறு</string>

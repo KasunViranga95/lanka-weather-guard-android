@@ -189,7 +189,15 @@
     <string name="gauge_in_feet_note">මෙම මිනුම අඩිවලින් ප්‍රකාශ කෙරේ; මෙහි මීටරවලින් පෙන්වයි.</string>
     <string name="catchment_rain_flow">ජල පෝෂක ප්‍රදේශයේ වැසි (පැය 24): මි.මී. %1$d · ජල ප්‍රවාහය: %2$d m³/s</string>
     <string name="river_flow_only">ජල ප්‍රවාහය: %1$d m³/s</string>
-    <string name="downstream_towns">පහළ ප්‍රදේශ: %1$s</string>
+    <string name="areas_may_flood">ගංවතුර ඇතිවිය හැකි ප්‍රදේශ</string>
+    <string name="areas_may_flood_note">මෙම මිනුමට පහළින් ගංගාව දිගේ පිහිටි නගර. ගංගාව ඉහළ යන විට ඉවුරු අසල පහත් බිම් මුලින්ම යටවේ.</string>
+    <string name="areas_at_risk_now">මෙහි ගංගාව ඉහළයි. මෙම මිනුමට පහළින් ගංගාව දිගේ ඇති නගර යටවිය හැක:</string>
+    <string name="show_on_map">සිතියමේ පෙන්වන්න</string>
+    <string name="more_info">වැඩි විස්තර</string>
+    <string name="see_river_gauges">%1$s මිනුම්</string>
+    <string name="reservoir_downstream_note">මෙම ජලාශයෙන් මුදාහරින ජලය %1$s දිගේ ගලා යයි. %1$s හි මිනුම් එය දිගේ ඇති නගර පෙන්වයි.</string>
+    <string name="reservoir_more_info_note">වැඩි විස්තර තුළ කාලයත් සමඟ ගබඩාව සහ පහළ ප්‍රදේශ පෙන්වයි (waterlevels.lk).</string>
+    <string name="alert_areas_at_risk">අවදානම් ප්‍රදේශ: %1$s</string>
     <string name="gauge_read_at">මිනුම කියවූයේ %1$s</string>
     <string name="level_alert">අනතුරු</string>
     <string name="level_minor">සුළු</string>

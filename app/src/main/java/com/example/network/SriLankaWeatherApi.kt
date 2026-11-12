@@ -164,7 +164,8 @@ data class ReservoirDto(
     @Json(name = "storagePercent") val storagePercent: Double?,
     @Json(name = "flow") val flow: ReservoirFlowDto?,
     @Json(name = "readingDay") val readingDay: String?,
-    @Json(name = "source") val source: String?
+    @Json(name = "source") val source: String?,
+    @Json(name = "url") val url: String?
 )
 
 data class ReservoirFlowDto(
