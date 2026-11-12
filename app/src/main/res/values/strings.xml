@@ -140,7 +140,8 @@
     <string name="sunset_at">Sunset %1$s</string>
     <string name="river_near_you">River near you</string>
     <string name="all_rivers">All rivers</string>
-    <string name="loading_rivers">Loading river levels…</string>
+    <string name="no_gauge_nearby">No river gauge within 25 km of %1$s. See all rivers for the nearest ones.</string>
+    <string name="gauge_distance_from">Gauge %1$s km from %2$s</string>
     <string name="river_at_station">%1$s at %2$s</string>
     <string name="no_recent_reading">No recent reading</string>
     <string name="gauge_reads">Gauge reads %1$s</string>

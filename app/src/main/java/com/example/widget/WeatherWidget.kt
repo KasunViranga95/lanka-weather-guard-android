@@ -78,7 +78,7 @@ class WeatherWidget : GlanceAppWidget() {
         val city = prefs.nearestCity?.takeIf { it.isNotBlank() } ?: region.name
         val report = repository.cachedReport(region, city)
         val stations = repository.cachedStations().orEmpty()
-        val station = stations.takeIf { it.isNotEmpty() }?.let { repository.findPrimaryStationForRegion(region, city, it) }
+        val station = repository.findPrimaryStationForRegion(region, city, stations, prefs.gpsLocation)?.station
             ?.takeIf { it.hasLiveReading }
 
         val river = station?.let {

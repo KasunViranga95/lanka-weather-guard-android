@@ -31,6 +31,18 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+/** A river gauge chosen for a place, and how far it is from it. */
+data class NearbyGauge(val station: RiverGaugeStation, val distanceKm: Double)
+
+// A gauge named after the town, or listing it downstream, counts if it is within this distance
+private const val TOWN_MATCH_MAX_KM = 40.0
+// A gauge this close to the place beats one that only lists the town downstream
+private const val ON_THE_SPOT_KM = 3.0
+// Otherwise the nearest gauge must be this close to say anything about the place
+private const val NEARBY_MAX_KM = 25.0
+// How much closer a silent gauge must be before it is chosen over one that is reporting
+private const val OFFLINE_GAUGE_PENALTY_KM = 10.0
+
 class SriLankaWeatherRepository {
 
     // All 25 Districts of Sri Lanka with authentic Nearest Cities/Towns for Residing Area Notifications
@@ -1410,31 +1422,49 @@ class SriLankaWeatherRepository {
             } ?: (findNearestRegion(latitude, longitude).let { it to (it.nearestCities.firstOrNull() ?: it.name) })
     }
 
+    /**
+     * The river gauge that matters for [nearestCity]: a gauge named after the town, else one right at the place,
+     * else one that lists the town as downstream (within [TOWN_MATCH_MAX_KM]), else the nearest reporting gauge
+     * within [NEARBY_MAX_KM].
+     * Distances are from [exactLocation] when the place came from the phone's location, otherwise from the town.
+     * Null when no gauge is close enough to say anything about the place.
+     */
     fun findPrimaryStationForRegion(
         region: SriLankaRegion,
         nearestCity: String,
-        stations: List<RiverGaugeStation>
-    ): RiverGaugeStation {
-        // First match by city in downstreamTowns or stationName
-        val cityMatch = stations.find { st ->
-            st.stationName.contains(nearestCity, ignoreCase = true) ||
-                st.downstreamTowns.any { town ->
-                    town.contains(nearestCity, ignoreCase = true) ||
-                        nearestCity.contains(town, ignoreCase = true)
-                }
-        }
-        if (cityMatch != null) return cityMatch
+        stations: List<RiverGaugeStation>,
+        exactLocation: Pair<Double, Double>? = null
+    ): NearbyGauge? {
+        if (stations.isEmpty()) return null
+        val (lat, lon) = exactLocation ?: region.getCoordinatesForCity(nearestCity)
+        val place = normalisePlaceName(nearestCity)
+        val distances = stations.associate { it.id to haversineKm(lat, lon, it.latitude, it.longitude) }
+        fun km(st: RiverGaugeStation) = distances.getValue(st.id)
 
-        // Next match by district
-        val districtMatch = stations
-            .filter { it.district.equals(region.name, ignoreCase = true) }
-            .maxByOrNull { it.floodStatus.severityRank }
-        if (districtMatch != null) return districtMatch
+        // A gauge that isn't reporting is only chosen if it is clearly closer than one that is
+        val nearest = stations.minByOrNull { km(it) + if (it.hasLiveReading) 0.0 else OFFLINE_GAUGE_PENALTY_KM }
+            ?: return null
 
-        // Otherwise nearest by coordinates
-        return stations.minByOrNull { st ->
-            haversineKm(region.latitude, region.longitude, st.latitude, st.longitude)
-        } ?: stations.first()
+        // 1. A gauge named after the town
+        stations.filter { st -> place in gaugePlaceNames(st) }.minByOrNull(::km)
+            ?.takeIf { km(it) <= TOWN_MATCH_MAX_KM }?.let { return NearbyGauge(it, km(it)) }
+        // 2. A gauge right at the place (e.g. the Kuruvita gauge for Kuruwita)
+        if (km(nearest) <= ON_THE_SPOT_KM) return NearbyGauge(nearest, km(nearest))
+        // 3. A gauge whose downstream towns include this one
+        stations.filter { st -> st.downstreamTowns.any { normalisePlaceName(it) == place } }.minByOrNull(::km)
+            ?.takeIf { km(it) <= TOWN_MATCH_MAX_KM }?.let { return NearbyGauge(it, km(it)) }
+        // 4. The nearest gauge, if it is close enough to say anything about the place
+        return if (km(nearest) <= NEARBY_MAX_KM) NearbyGauge(nearest, km(nearest)) else null
+    }
+
+    /** "Gampaha Town" → "gampaha", "Kandy City" → "kandy". */
+    private fun normalisePlaceName(name: String): String =
+        name.lowercase(Locale.US).replace(Regex("\\b(town|city)\\b"), " ").replace(Regex("\\s+"), " ").trim()
+
+    /** The town a gauge is named after, and the town in brackets if any: "Glencorse (Avissawella)". */
+    private fun gaugePlaceNames(station: RiverGaugeStation): List<String> = buildList {
+        add(normalisePlaceName(station.stationName.substringBefore(" (")))
+        Regex("\\(([^)]+)\\)").find(station.stationName)?.groupValues?.get(1)?.let { add(normalisePlaceName(it)) }
     }
 
     private fun haversineKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {

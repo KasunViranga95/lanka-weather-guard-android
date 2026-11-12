@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.SavedPlace
+import com.example.data.NearbyGauge
 import com.example.data.SriLankaWeatherRepository
 import com.example.data.UserPreferencesStore
 import com.example.model.AiChatMessage
@@ -33,6 +34,8 @@ data class WeatherUiState(
     val selectedRegion: SriLankaRegion,
     val selectedNearestCity: String,
     val isGpsDetected: Boolean = false,
+    // The phone's position when the place came from "Use my location" (used to find the nearest gauge)
+    val gpsLocation: Pair<Double, Double>? = null,
     val savedPlaces: List<SavedPlace> = emptyList(),
     val showPlacePicker: Boolean = false,
     val wasLocationPermissionDenied: Boolean = false,
@@ -74,6 +77,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
             selectedRegion = initialRegion,
             selectedNearestCity = initialCity,
             isGpsDetected = savedPrefs.isFromGps,
+            gpsLocation = savedPrefs.gpsLocation,
             savedPlaces = UserPreferencesStore.loadPlaces(),
             alertsEnabled = UserPreferencesStore.alertsEnabled(),
             // Show what was saved on the phone straight away; live data replaces it when it arrives
@@ -118,13 +122,14 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /** Shows [nearestCity] in [region], adding it to the saved places. */
-    fun selectPlace(region: SriLankaRegion, nearestCity: String, fromGps: Boolean = false) {
-        UserPreferencesStore.saveLocation(region, nearestCity, fromGps)
+    fun selectPlace(region: SriLankaRegion, nearestCity: String, fromGps: Boolean = false, gpsLocation: Pair<Double, Double>? = null) {
+        UserPreferencesStore.saveLocation(region, nearestCity, fromGps, gpsLocation)
         _uiState.update {
             it.copy(
                 selectedRegion = region,
                 selectedNearestCity = nearestCity,
                 isGpsDetected = fromGps,
+                gpsLocation = gpsLocation?.takeIf { fromGps },
                 showPlacePicker = false,
                 savedPlaces = UserPreferencesStore.loadPlaces(),
                 regionalReport = repository.cachedReport(region, nearestCity)
@@ -150,7 +155,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
 
     fun onCoordinatesDetected(latitude: Double, longitude: Double) {
         val (nearest, city) = repository.findNearestCity(latitude, longitude)
-        selectPlace(nearest, city, fromGps = true)
+        selectPlace(nearest, city, fromGps = true, gpsLocation = latitude to longitude)
     }
 
     /** Opens the app on the place a notification was about. */
@@ -224,11 +229,10 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
         }.also { telemetryRefreshJob = it }
     }
 
-    /** The river gauge most relevant to the selected town (null until stations have loaded). */
-    fun primaryStationForCurrentArea(): RiverGaugeStation? {
+    /** The river gauge most relevant to the selected place, or null when none is close enough. */
+    fun primaryStationForCurrentArea(): NearbyGauge? {
         val state = _uiState.value
-        if (state.riverStations.isEmpty()) return null
-        return repository.findPrimaryStationForRegion(state.selectedRegion, state.selectedNearestCity, state.riverStations)
+        return repository.findPrimaryStationForRegion(state.selectedRegion, state.selectedNearestCity, state.riverStations, state.gpsLocation)
     }
 
     // ---- Rivers ----
@@ -285,7 +289,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                 region = state.selectedRegion,
                 nearestCity = state.selectedNearestCity,
                 report = state.regionalReport,
-                station = primaryStationForCurrentArea()?.takeIf { it.hasLiveReading },
+                station = primaryStationForCurrentArea()?.station?.takeIf { it.hasLiveReading },
                 languageTag = languageTag
             )
             _uiState.update { current ->

@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
+import android.os.CancellationSignal
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -82,6 +83,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -221,9 +223,10 @@ fun LankaWeatherGuardApp(
             }
         }
 
-        val primaryStationForArea = remember(uiState.riverStations, uiState.selectedRegion, uiState.selectedNearestCity) {
+        val nearbyGauge = remember(uiState.riverStations, uiState.selectedRegion, uiState.selectedNearestCity, uiState.gpsLocation) {
             weatherViewModel.primaryStationForCurrentArea()
         }
+        val primaryStationForArea = nearbyGauge?.station
 
         // Alerts are worked out from the data on screen, in the app language
         val alerts = remember(uiState.regionalReport, uiState.riverStations, primaryStationForArea, configuration) {
@@ -511,7 +514,7 @@ fun LankaWeatherGuardApp(
                         onAlertsEnabledChange = setAlertsEnabled,
                         regionalReport = uiState.regionalReport,
                         riverStations = uiState.riverStations,
-                        primaryStation = primaryStationForArea,
+                        nearbyGauge = nearbyGauge,
                         isSyncing = uiState.isLoading,
                         onRefresh = { weatherViewModel.refreshAllTelemetry() },
                         onOpenRiversTab = { weatherViewModel.selectTab(AppTab.RIVERS) },
@@ -592,13 +595,34 @@ private fun resolveDeviceLocation(
 ) {
     try {
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-        val best = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-            ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-        if (best != null) onCoordinates(best.latitude, best.longitude) else onFallback()
+            ?: return onFallback()
+        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+        val lastKnown = providers.mapNotNull { runCatching { locationManager.getLastKnownLocation(it) }.getOrNull() }
+            .maxByOrNull { it.time }
+        // A saved position is only trusted if it is a couple of minutes old; it can be from hours ago, miles away
+        if (lastKnown != null && System.currentTimeMillis() - lastKnown.time < FRESH_LOCATION_MS) {
+            return onCoordinates(lastKnown.latitude, lastKnown.longitude)
+        }
+        val provider = providers.firstOrNull { runCatching { locationManager.isProviderEnabled(it) }.getOrDefault(false) }
+        if (provider == null) {
+            return if (lastKnown != null) onCoordinates(lastKnown.latitude, lastKnown.longitude) else onFallback()
+        }
+        // Ask for a fresh fix; if none comes, the saved position is better than nothing
+        LocationManagerCompat.getCurrentLocation(
+            locationManager,
+            provider,
+            CancellationSignal(),
+            ContextCompat.getMainExecutor(context)
+        ) { location ->
+            val best = location ?: lastKnown
+            if (best != null) onCoordinates(best.latitude, best.longitude) else onFallback()
+        }
     } catch (_: Exception) {
         onFallback()
     }
 }
+
+private const val FRESH_LOCATION_MS = 2 * 60 * 1000L
 
 private fun openUrl(context: Context, url: String) {
     try {

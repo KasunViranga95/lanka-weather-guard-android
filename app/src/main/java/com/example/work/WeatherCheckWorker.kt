@@ -43,13 +43,16 @@ class WeatherCheckWorker(context: Context, params: WorkerParameters) : Coroutine
         val localized = LocaleHelper.wrap(app)
         var anyLive = stations.any { it.hasLiveReading }
 
+        val prefs = UserPreferencesStore.loadPreferences()
         for (place in places) {
             val region = repository.regionById(place.regionId) ?: continue
             val report = repository.fetchRegionalReport(region, place.city)
             if (!report.isLiveApiData || report.isFromCache) continue
             anyLive = true
             if (!alertsOn) continue
-            val near = repository.findPrimaryStationForRegion(region, place.city, stations)
+            // The phone's own position only applies to the place that came from it
+            val exact = prefs.gpsLocation?.takeIf { prefs.regionId == place.regionId && prefs.nearestCity == place.city }
+            val near = repository.findPrimaryStationForRegion(region, place.city, stations, exact)?.station
             val alerts = AlertEngine.build(localized.resources, region, place.city, report, stations, near)
                 .filter { it.isUserDistrictMatch }
             AlertNotifier.notifyNew(localized, place, alerts)

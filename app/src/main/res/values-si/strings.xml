@@ -139,7 +139,8 @@
     <string name="sunset_at">හිරු බැසීම %1$s</string>
     <string name="river_near_you">ඔබ අසල ගංගාව</string>
     <string name="all_rivers">සියලු ගංගා</string>
-    <string name="loading_rivers">ගංගා ජල මට්ටම් ලබා ගනිමින්…</string>
+    <string name="no_gauge_nearby">%1$s සිට කි.මී. 25 ක් ඇතුළත ගංගා මිනුමක් නැත. ආසන්නම ඒවා සඳහා සියලු ගංගා බලන්න.</string>
+    <string name="gauge_distance_from">%2$s සිට කි.මී. %1$s ක් දුරින් ඇති මිනුම</string>
     <string name="river_at_station">%2$s හි %1$s</string>
     <string name="no_recent_reading">මෑත කියවීමක් නැත</string>
     <string name="gauge_reads">මිනුම පෙන්වන්නේ %1$s</string>

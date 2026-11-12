@@ -139,7 +139,8 @@
     <string name="sunset_at">சூரிய அஸ்தமனம் %1$s</string>
     <string name="river_near_you">உங்களுக்கு அருகிலுள்ள ஆறு</string>
     <string name="all_rivers">அனைத்து ஆறுகள்</string>
-    <string name="loading_rivers">ஆற்று நீர்மட்டங்கள் ஏற்றப்படுகின்றன…</string>
+    <string name="no_gauge_nearby">%1$s இலிருந்து 25 கி.மீ.க்குள் ஆற்று அளவீடு இல்லை. அருகிலுள்ளவற்றுக்கு அனைத்து ஆறுகளையும் பாருங்கள்.</string>
+    <string name="gauge_distance_from">%2$s இலிருந்து %1$s கி.மீ. தொலைவிலுள்ள அளவீடு</string>
     <string name="river_at_station">%2$s இல் %1$s</string>
     <string name="no_recent_reading">சமீபத்திய அளவீடு இல்லை</string>
     <string name="gauge_reads">அளவீடு %1$s</string>

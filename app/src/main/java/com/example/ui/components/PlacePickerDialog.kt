@@ -73,11 +73,22 @@ fun PlacePickerDialog(
         mutableStateOf(initialCity.takeIf { initialRegion.nearestCities.contains(it) } ?: initialRegion.nearestCities.firstOrNull() ?: initialRegion.name)
     }
     val matches = remember(regions, query) {
-        if (query.isBlank()) emptyList() else regions.flatMap { reg ->
+        val q = query.trim()
+        if (q.isEmpty()) emptyList() else regions.flatMap { reg ->
             reg.nearestCities
-                .filter { it.contains(query, ignoreCase = true) || reg.name.contains(query, ignoreCase = true) }
+                .filter { it.contains(q, ignoreCase = true) || reg.name.contains(q, ignoreCase = true) }
                 .map { reg to it }
-        }.take(12)
+        }
+            // "Ella" should list Ella before Wellampitiya: exact names, then names starting with it, then the rest
+            .sortedBy { (_, city) ->
+                val name = city.lowercase().removeSuffix(" town").removeSuffix(" city")
+                when {
+                    name == q.lowercase() -> 0
+                    name.startsWith(q.lowercase()) -> 1
+                    else -> 2
+                }
+            }
+            .take(12)
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
