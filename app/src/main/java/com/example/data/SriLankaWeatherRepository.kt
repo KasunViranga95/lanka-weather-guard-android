@@ -1,5 +1,6 @@
 package com.example.data
 
+import androidx.annotation.VisibleForTesting
 import com.example.model.CityWeatherSnapshot
 import com.example.model.AlertSeverity
 import com.example.model.DailyForecastItem
@@ -1829,7 +1830,8 @@ class SriLankaWeatherRepository {
      * last 3 hours but no 24-hour series, so the graph stays empty for these gauges. The alert and flood
      * levels stay the built-in ones (HMIS / RiverNet published levels, or the app's estimates).
      */
-    private fun RiverGaugeStation.withWaterLevelsReading(reading: WaterLevelsStation, discharge: Double): RiverGaugeStation? {
+    @VisibleForTesting
+    internal fun RiverGaugeStation.withWaterLevelsReading(reading: WaterLevelsStation, discharge: Double): RiverGaugeStation? {
         if (reading.status == "stale") return null
         val published = reading.published
         // The feed's "level" is always feet; "published" keeps the agency's own number and unit
