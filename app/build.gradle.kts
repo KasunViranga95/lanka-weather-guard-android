@@ -75,6 +75,11 @@ android {
     buildConfig = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
+  // The app has its own language setting (English, Sinhala, Tamil). Google Play would otherwise only
+  // install the language of the phone, so picking another one in the app would show English
+  bundle {
+    language { enableSplit = false }
+  }
   dependenciesInfo {
     includeInApk = false
     includeInBundle = true
