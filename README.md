@@ -77,4 +77,5 @@ This regenerates `values/`, `values-si/` and `values-ta/strings.xml`. Have a nat
 - **Privacy policy:** [docs/PRIVACY.md](docs/PRIVACY.md). Use its GitHub address in the Play Console.
 - **Signing:** create an upload key and set `KEYSTORE_PATH`, `STORE_PASSWORD` and `KEY_PASSWORD` for the `release` signing config.
 - **Version:** increase `versionCode` in `app/build.gradle.kts` for every upload.
+- **Code shrinking:** release builds are shrunk with R8 (about 2.6 MB instead of 22 MB). Upload `app/build/outputs/mapping/release/mapping.txt` with each release so Play Console crash reports show readable code. If a new library reads classes by reflection, it may need a rule in `app/proguard-rules.pro`; test the release build before uploading.
 - **Data safety form:** approximate location (optional, used on the phone only), no data collected or shared for ads or analytics, AI helper questions sent to Google Gemini through your proxy.
