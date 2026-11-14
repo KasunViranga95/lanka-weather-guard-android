@@ -25,6 +25,9 @@ data class SavedPlace(val regionId: String, val city: String) {
 object UserPreferencesStore {
 
     private const val PREFS_NAME = "lanka_weather_guard_user_prefs"
+    // The phone's GPS position lives in its own file, which backup_rules.xml and data_extraction_rules.xml
+    // keep out of Google backups and device transfers: the privacy policy promises it stays on the phone
+    const val DEVICE_LOCATION_PREFS_NAME = "lanka_weather_guard_device_location"
     private const val KEY_REGION_ID = "saved_region_id"
     private const val KEY_NEAREST_CITY = "saved_nearest_city"
     private const val KEY_IS_FROM_GPS = "saved_is_from_gps"
@@ -56,15 +59,31 @@ object UserPreferencesStore {
         return appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
+    private fun locationPrefs(): SharedPreferences? {
+        val context = appContext ?: return null
+        val location = context.getSharedPreferences(DEVICE_LOCATION_PREFS_NAME, Context.MODE_PRIVATE)
+        // Version 5.3 kept the position in the main file, which is backed up: move it out once
+        val main = prefs()
+        if (main != null && main.contains(KEY_GPS_LAT)) {
+            location.edit()
+                .putString(KEY_GPS_LAT, main.getString(KEY_GPS_LAT, null))
+                .putString(KEY_GPS_LON, main.getString(KEY_GPS_LON, null))
+                .apply()
+            main.edit().remove(KEY_GPS_LAT).remove(KEY_GPS_LON).apply()
+        }
+        return location
+    }
+
     fun loadPreferences(): SavedUserPreferences {
         val sp = prefs() ?: return inMemoryFallback
+        val location = locationPrefs()
         return SavedUserPreferences(
             regionId = sp.getString(KEY_REGION_ID, null),
             nearestCity = sp.getString(KEY_NEAREST_CITY, null),
             isFromGps = sp.getBoolean(KEY_IS_FROM_GPS, false),
             isDarkTheme = sp.getBoolean(KEY_IS_DARK_THEME, true),
-            gpsLatitude = sp.getString(KEY_GPS_LAT, null)?.toDoubleOrNull(),
-            gpsLongitude = sp.getString(KEY_GPS_LON, null)?.toDoubleOrNull()
+            gpsLatitude = location?.getString(KEY_GPS_LAT, null)?.toDoubleOrNull(),
+            gpsLongitude = location?.getString(KEY_GPS_LON, null)?.toDoubleOrNull()
         )
     }
 
@@ -82,6 +101,9 @@ object UserPreferencesStore {
             putString(KEY_REGION_ID, region.id)
             putString(KEY_NEAREST_CITY, nearestCity)
             putBoolean(KEY_IS_FROM_GPS, isFromGps)
+            apply()
+        }
+        locationPrefs()?.edit()?.apply {
             if (gps != null) {
                 putString(KEY_GPS_LAT, gps.first.toString())
                 putString(KEY_GPS_LON, gps.second.toString())
