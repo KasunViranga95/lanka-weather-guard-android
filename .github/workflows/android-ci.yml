@@ -25,7 +25,7 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       # Debug builds are signed with debug.keystore, which isn't committed (see README).
       # Make a standard throwaway debug key for CI.
